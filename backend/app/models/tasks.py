@@ -19,6 +19,7 @@ class Task(TenantScoped, table=True):
     status: str = Field(default="inbox", index=True)
     priority: str = Field(default="medium", index=True)
     due_at: datetime | None = None
+    in_progress_at: datetime | None = None
 
     created_by_user_id: UUID | None = Field(default=None, foreign_key="users.id", index=True)
     assigned_agent_id: UUID | None = Field(default=None, foreign_key="agents.id", index=True)

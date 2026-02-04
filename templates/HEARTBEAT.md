@@ -21,6 +21,15 @@ curl -s -X POST "$BASE_URL/api/v1/agents/heartbeat" \
   -d '{"name": "'$AGENT_NAME'", "board_id": "'$BOARD_ID'", "status": "online"}'
 ```
 
+## Commenting rules (mandatory)
+- Every task state change MUST be followed by a task comment within 30 seconds.
+- Never post task updates to chat/web channels. Task comments are the only update channel.
+- Minimum comment format:
+  - `status`: inbox | in_progress | review | done
+  - `summary`: one-line progress update
+  - `details`: 1–3 bullets of what changed / what you did
+  - `next`: next step or handoff request
+
 2) List boards:
 ```bash
 curl -s "$BASE_URL/api/v1/boards" \
@@ -40,25 +49,29 @@ curl -s "$BASE_URL/api/v1/boards/{BOARD_ID}/tasks" \
 curl -s -X PATCH "$BASE_URL/api/v1/boards/{BOARD_ID}/tasks/{TASK_ID}" \
   -H "X-Agent-Token: $AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"status": "in_progress"}'
+  -d '{"status": "in_progress", "comment": "[status=in_progress] Claimed by '$AGENT_NAME'.\\nsummary: Starting work.\\ndetails: - Triage task and plan approach.\\nnext: Begin execution."}'
 ```
 
 5) Work the task:
 - Update status as you progress.
 - Post a brief work log to the task comments endpoint (do not use chat).
-- When complete, move to "review":
+- When complete, use the following mandatory steps:
+
+5a) Post the completion comment (required, markdown). Include:
+- status, summary, details (bullets), next, and the full response text.
+Use the task comments endpoint for this step.
+
+5b) Move the task to "review":
 ```bash
 curl -s -X PATCH "$BASE_URL/api/v1/boards/{BOARD_ID}/tasks/{TASK_ID}" \
   -H "X-Agent-Token: $AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"status": "review"}'
 ```
-```bash
-curl -s -X POST "$BASE_URL/api/v1/boards/{BOARD_ID}/tasks/{TASK_ID}/comments" \
-  -H "X-Agent-Token: $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Summary of work, result, and next steps."}'
-```
+
+## Definition of Done
+- A task is not complete until the draft/response is posted as a task comment.
+- Comments must be markdown and include: summary, details (bullets), next.
 
 ## Status flow
 ```

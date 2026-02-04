@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import asc
+from sqlalchemy import asc, desc
 from sqlmodel import Session, col, select
 
 from app.api.deps import (
@@ -29,6 +30,42 @@ from app.schemas.tasks import (
 from app.services.activity_log import record_activity
 
 router = APIRouter(prefix="/boards/{board_id}/tasks", tags=["tasks"])
+
+REQUIRED_COMMENT_FIELDS = ("summary:", "details:", "next:")
+
+
+def is_valid_markdown_comment(message: str) -> bool:
+    content = message.strip()
+    if not content:
+        return False
+    lowered = content.lower()
+    if not all(field in lowered for field in REQUIRED_COMMENT_FIELDS):
+        return False
+    if "- " not in content and "* " not in content:
+        return False
+    return True
+
+
+def has_valid_recent_comment(
+    session: Session,
+    task: Task,
+    agent_id: UUID | None,
+    since: datetime | None,
+) -> bool:
+    if agent_id is None or since is None:
+        return False
+    statement = (
+        select(ActivityEvent)
+        .where(col(ActivityEvent.task_id) == task.id)
+        .where(col(ActivityEvent.event_type) == "task.comment")
+        .where(col(ActivityEvent.agent_id) == agent_id)
+        .where(col(ActivityEvent.created_at) >= since)
+        .order_by(desc(col(ActivityEvent.created_at)))
+    )
+    event = session.exec(statement).first()
+    if event is None or event.message is None:
+        return False
+    return is_valid_markdown_comment(event.message)
 
 
 @router.get("", response_model=list[TaskRead])
@@ -74,20 +111,28 @@ def update_task(
 ) -> Task:
     previous_status = task.status
     updates = payload.model_dump(exclude_unset=True)
+    comment = updates.pop("comment", None)
     if actor.actor_type == "agent":
         if actor.agent and actor.agent.board_id and task.board_id:
             if actor.agent.board_id != task.board_id:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-        allowed_fields = {"status"}
+        allowed_fields = {"status", "comment"}
         if not set(updates).issubset(allowed_fields):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         if "status" in updates:
             if updates["status"] == "inbox":
                 task.assigned_agent_id = None
+                task.in_progress_at = None
             else:
                 task.assigned_agent_id = actor.agent.id if actor.agent else None
-    elif "status" in updates and updates["status"] == "inbox":
-        task.assigned_agent_id = None
+                if updates["status"] == "in_progress":
+                    task.in_progress_at = datetime.utcnow()
+    elif "status" in updates:
+        if updates["status"] == "inbox":
+            task.assigned_agent_id = None
+            task.in_progress_at = None
+        elif updates["status"] == "in_progress":
+            task.in_progress_at = datetime.utcnow()
     if "assigned_agent_id" in updates and updates["assigned_agent_id"]:
         agent = session.get(Agent, updates["assigned_agent_id"])
         if agent is None:
@@ -98,9 +143,34 @@ def update_task(
         setattr(task, key, value)
     task.updated_at = datetime.utcnow()
 
+    if "status" in updates and updates["status"] == "review":
+        if comment is not None and comment.strip():
+            if not is_valid_markdown_comment(comment):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        else:
+            if not has_valid_recent_comment(
+                session,
+                task,
+                task.assigned_agent_id,
+                task.in_progress_at,
+            ):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
     session.add(task)
     session.commit()
     session.refresh(task)
+
+    if comment is not None and comment.strip():
+        if actor.actor_type == "agent" and not is_valid_markdown_comment(comment):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        event = ActivityEvent(
+            event_type="task.comment",
+            message=comment.strip(),
+            task_id=task.id,
+            agent_id=actor.agent.id if actor.actor_type == "agent" and actor.agent else None,
+        )
+        session.add(event)
+        session.commit()
 
     if "status" in updates and task.status != previous_status:
         event_type = "task.status_changed"
@@ -159,6 +229,8 @@ def create_task_comment(
         if actor.agent.board_id and task.board_id and actor.agent.board_id != task.board_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     if not payload.message.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    if actor.actor_type == "agent" and not is_valid_markdown_comment(payload.message):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
     event = ActivityEvent(
         event_type="task.comment",

@@ -26,12 +26,14 @@ class TaskUpdate(SQLModel):
     priority: str | None = None
     due_at: datetime | None = None
     assigned_agent_id: UUID | None = None
+    comment: str | None = None
 
 
 class TaskRead(TaskBase):
     id: UUID
     board_id: UUID | None
     created_by_user_id: UUID | None
+    in_progress_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
