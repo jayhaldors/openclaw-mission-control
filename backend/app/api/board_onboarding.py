@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 from app.api.deps import get_board_or_404, require_admin_auth
 from app.core.agent_tokens import generate_agent_token, hash_agent_token
 from app.core.auth import AuthContext
+from app.core.config import settings
 from app.db.session import get_session
 from app.integrations.openclaw_gateway import GatewayConfig as GatewayClientConfig
 from app.integrations.openclaw_gateway import (
@@ -194,11 +195,19 @@ async def start_onboarding(
 
     gateway, config = _gateway_config(session, board)
     session_key = gateway.main_session_key
+    base_url = settings.base_url or "http://localhost:8000"
     prompt = (
         "BOARD ONBOARDING REQUEST\n\n"
         f"Board Name: {board.name}\n"
         "You are the main agent. Ask the user 3-6 focused questions to clarify their goal.\n"
         "Only respond in OpenClaw chat with onboarding JSON. All other outputs must be sent to Mission Control via API.\n"
+        f"Mission Control base URL: {base_url}\n"
+        "Use the AUTH_TOKEN from MAIN_USER.md or MAIN_TOOLS.md and pass it as X-Agent-Token.\n"
+        "Example API call (for non-onboarding updates):\n"
+        f"curl -s -X POST \"{base_url}/api/v1/boards/{board.id}/memory\" "
+        "-H \"X-Agent-Token: $AUTH_TOKEN\" "
+        "-H \"Content-Type: application/json\" "
+        "-d '{\"content\":\"Onboarding update...\",\"tags\":[\"onboarding\"],\"source\":\"main_agent\"}'\n"
         "Return questions as JSON: {\"question\": \"...\", \"options\": [...]}.\n"
         "When you have enough info, return JSON: {\"status\": \"complete\", \"board_type\": \"goal\"|\"general\", "
         "\"objective\": \"...\", \"success_metrics\": {...}, \"target_date\": \"YYYY-MM-DD\"}."
