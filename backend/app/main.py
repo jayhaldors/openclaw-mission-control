@@ -21,6 +21,7 @@ from app.api.metrics import router as metrics_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
 from app.core.config import settings
+from app.core.error_handling import install_error_handling
 from app.core.logging import configure_logging
 from app.db.session import init_db
 
@@ -44,6 +45,8 @@ if origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+install_error_handling(app)
 
 
 @app.get("/health")
