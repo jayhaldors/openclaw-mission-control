@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useMemo } from "react";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import {
   Area,
   AreaChart,
@@ -22,8 +22,8 @@ import { Activity, Clock, PenSquare, Timer, Users } from "lucide-react";
 
 import { DashboardSidebar } from "@/components/organisms/DashboardSidebar";
 import { DashboardShell } from "@/components/templates/DashboardShell";
-import { Button } from "@/components/ui/button";
 import MetricSparkline from "@/components/charts/metric-sparkline";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 import { ApiError } from "@/api/mutator";
 import {
   type dashboardMetricsApiV1MetricsDashboardGetResponse,
@@ -319,20 +319,11 @@ export default function DashboardPage() {
   return (
     <DashboardShell>
       <SignedOut>
-        <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-            <p className="text-sm text-slate-600">
-              Sign in to access the dashboard.
-            </p>
-            <SignInButton
-              mode="modal"
-              forceRedirectUrl="/onboarding"
-              signUpForceRedirectUrl="/onboarding"
-            >
-              <Button className="mt-4">Sign in</Button>
-            </SignInButton>
-          </div>
-        </div>
+        <SignedOutPanel
+          message="Sign in to access the dashboard."
+          forceRedirectUrl="/onboarding"
+          signUpForceRedirectUrl="/onboarding"
+        />
       </SignedOut>
       <SignedIn>
         <DashboardSidebar />

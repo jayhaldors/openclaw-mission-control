@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import {
   type ColumnDef,
   type SortingState,
@@ -47,6 +47,8 @@ import {
   useGetMyMembershipApiV1OrganizationsMeMemberGet,
 } from "@/api/generated/organizations/organizations";
 import type { AgentRead } from "@/api/generated/model";
+import { AdminOnlyNotice } from "@/components/auth/AdminOnlyNotice";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 
 const parseTimestamp = (value?: string | null) => {
   if (!value) return null;
@@ -304,18 +306,11 @@ export default function AgentsPage() {
   return (
     <DashboardShell>
       <SignedOut>
-        <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-            <p className="text-sm text-slate-600">Sign in to view agents.</p>
-            <SignInButton
-              mode="modal"
-              forceRedirectUrl="/agents"
-              signUpForceRedirectUrl="/agents"
-            >
-              <Button className="mt-4">Sign in</Button>
-            </SignInButton>
-          </div>
-        </div>
+        <SignedOutPanel
+          message="Sign in to view agents."
+          forceRedirectUrl="/agents"
+          signUpForceRedirectUrl="/agents"
+        />
       </SignedOut>
       <SignedIn>
         <DashboardSidebar />
@@ -342,9 +337,7 @@ export default function AgentsPage() {
 
           <div className="p-8">
             {!isAdmin ? (
-              <div className="rounded-xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600 shadow-sm">
-                Only organization owners and admins can access agents.
-              </div>
+              <AdminOnlyNotice message="Only organization owners and admins can access agents." />
             ) : (
               <>
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

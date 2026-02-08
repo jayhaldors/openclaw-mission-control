@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import {
   type ColumnDef,
   flexRender,
@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 
 const formatTimestamp = (value?: string | null) => {
   if (!value) return "—";
@@ -190,16 +191,10 @@ export default function BoardGroupsPage() {
   return (
     <DashboardShell>
       <SignedOut>
-        <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-            <p className="text-sm text-slate-600">
-              Sign in to view board groups.
-            </p>
-            <SignInButton mode="modal" forceRedirectUrl="/board-groups">
-              <Button className="mt-4">Sign in</Button>
-            </SignInButton>
-          </div>
-        </div>
+        <SignedOutPanel
+          message="Sign in to view board groups."
+          forceRedirectUrl="/board-groups"
+        />
       </SignedOut>
       <SignedIn>
         <DashboardSidebar />

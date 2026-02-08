@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useMemo, useState } from "react";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import { useQueryClient } from "@tanstack/react-query";
 import { Building2, Copy, UserPlus, Users } from "lucide-react";
 
@@ -38,6 +38,7 @@ import type {
   OrganizationInviteRead,
   OrganizationMemberRead,
 } from "@/api/generated/model";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 import { DashboardSidebar } from "@/components/organisms/DashboardSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -721,20 +722,11 @@ export default function OrganizationPage() {
   return (
     <DashboardShell>
       <SignedOut>
-        <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-            <p className="text-sm text-slate-600">
-              Sign in to manage your organization.
-            </p>
-            <SignInButton
-              mode="modal"
-              forceRedirectUrl="/organization"
-              signUpForceRedirectUrl="/organization"
-            >
-              <Button className="mt-4">Sign in</Button>
-            </SignInButton>
-          </div>
-        </div>
+        <SignedOutPanel
+          message="Sign in to manage your organization."
+          forceRedirectUrl="/organization"
+          signUpForceRedirectUrl="/organization"
+        />
       </SignedOut>
       <SignedIn>
         <DashboardSidebar />

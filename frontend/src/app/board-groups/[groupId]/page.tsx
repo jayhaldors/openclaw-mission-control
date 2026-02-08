@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import {
   ArrowUpRight,
   MessageSquare,
@@ -38,6 +38,7 @@ import type {
 } from "@/api/generated/model";
 import type { BoardGroupBoardSnapshot } from "@/api/generated/model";
 import { Markdown } from "@/components/atoms/Markdown";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 import { DashboardSidebar } from "@/components/organisms/DashboardSidebar";
 import { DashboardShell } from "@/components/templates/DashboardShell";
 import { BoardChatComposer } from "@/components/BoardChatComposer";
@@ -721,19 +722,10 @@ export default function BoardGroupDetailPage() {
   return (
     <DashboardShell>
       <SignedOut>
-        <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-            <p className="text-sm text-slate-600">
-              Sign in to view board groups.
-            </p>
-            <SignInButton
-              mode="modal"
-              forceRedirectUrl={`/board-groups/${groupId ?? ""}`}
-            >
-              <Button className="mt-4">Sign in</Button>
-            </SignInButton>
-          </div>
-        </div>
+        <SignedOutPanel
+          message="Sign in to view board groups."
+          forceRedirectUrl={`/board-groups/${groupId ?? ""}`}
+        />
       </SignedOut>
       <SignedIn>
         <DashboardSidebar />

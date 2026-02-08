@@ -34,6 +34,8 @@ from app.models.board_memory import BoardMemory
 from app.models.board_onboarding import BoardOnboardingSession
 from app.models.boards import Board
 from app.models.gateways import Gateway
+from app.models.organization_board_access import OrganizationBoardAccess
+from app.models.organization_invite_board_access import OrganizationInviteBoardAccess
 from app.models.task_dependencies import TaskDependency
 from app.models.task_fingerprints import TaskFingerprint
 from app.models.tasks import Task
@@ -315,6 +317,10 @@ async def delete_board(
     await session.execute(delete(BoardMemory).where(col(BoardMemory.board_id) == board.id))
     await session.execute(
         delete(BoardOnboardingSession).where(col(BoardOnboardingSession.board_id) == board.id)
+    )
+    await session.execute(delete(OrganizationBoardAccess).where(col(OrganizationBoardAccess.board_id) == board.id))
+    await session.execute(
+        delete(OrganizationInviteBoardAccess).where(col(OrganizationInviteBoardAccess.board_id) == board.id)
     )
 
     # Tasks reference agents (assigned_agent_id) and have dependents (fingerprints/dependencies), so

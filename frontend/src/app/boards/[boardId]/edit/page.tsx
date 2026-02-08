@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import { X } from "lucide-react";
 
 import { ApiError } from "@/api/mutator";
@@ -32,6 +32,8 @@ import type {
   BoardUpdate,
 } from "@/api/generated/model";
 import { BoardOnboardingChat } from "@/components/BoardOnboardingChat";
+import { AdminOnlyNotice } from "@/components/auth/AdminOnlyNotice";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 import { DashboardSidebar } from "@/components/organisms/DashboardSidebar";
 import { DashboardShell } from "@/components/templates/DashboardShell";
 import { Button } from "@/components/ui/button";
@@ -308,18 +310,11 @@ export default function EditBoardPage() {
     <>
       <DashboardShell>
         <SignedOut>
-          <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-            <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-              <p className="text-sm text-slate-600">Sign in to edit boards.</p>
-              <SignInButton
-                mode="modal"
-                forceRedirectUrl={`/boards/${boardId}/edit`}
-                signUpForceRedirectUrl={`/boards/${boardId}/edit`}
-              >
-                <Button className="mt-4">Sign in</Button>
-              </SignInButton>
-            </div>
-          </div>
+          <SignedOutPanel
+            message="Sign in to edit boards."
+            forceRedirectUrl={`/boards/${boardId}/edit`}
+            signUpForceRedirectUrl={`/boards/${boardId}/edit`}
+          />
         </SignedOut>
         <SignedIn>
           <DashboardSidebar />
@@ -337,9 +332,7 @@ export default function EditBoardPage() {
 
             <div className="p-8">
               {!isAdmin ? (
-                <div className="rounded-xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600 shadow-sm">
-                  Only organization owners and admins can edit board settings.
-                </div>
+                <AdminOnlyNotice message="Only organization owners and admins can edit board settings." />
               ) : (
                 <div className="space-y-6">
                   <form

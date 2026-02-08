@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
-import { SignInButton, SignedIn, SignedOut, useAuth } from "@/auth/clerk";
+import { SignedIn, SignedOut, useAuth } from "@/auth/clerk";
 import { ArrowUpRight, Activity as ActivityIcon } from "lucide-react";
 
 import { ApiError } from "@/api/mutator";
@@ -15,9 +15,9 @@ import {
 import type { ActivityTaskCommentFeedItemRead } from "@/api/generated/model";
 import { Markdown } from "@/components/atoms/Markdown";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { SignedOutPanel } from "@/components/auth/SignedOutPanel";
 import { DashboardSidebar } from "@/components/organisms/DashboardSidebar";
 import { DashboardShell } from "@/components/templates/DashboardShell";
-import { Button } from "@/components/ui/button";
 import { createExponentialBackoff } from "@/lib/backoff";
 import { apiDatetimeToMs, parseApiDatetime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
@@ -295,20 +295,13 @@ export default function ActivityPage() {
   return (
     <DashboardShell>
       <SignedOut>
-        <div className="col-span-2 flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-            <p className="text-sm text-slate-600">Sign in to view the feed.</p>
-            <SignInButton
-              mode="redirect"
-              forceRedirectUrl="/activity"
-              signUpForceRedirectUrl="/activity"
-            >
-              <Button className="mt-4" data-testid="activity-signin">
-                Sign in
-              </Button>
-            </SignInButton>
-          </div>
-        </div>
+        <SignedOutPanel
+          message="Sign in to view the feed."
+          forceRedirectUrl="/activity"
+          signUpForceRedirectUrl="/activity"
+          mode="redirect"
+          buttonTestId="activity-signin"
+        />
       </SignedOut>
       <SignedIn>
         <DashboardSidebar />
