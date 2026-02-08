@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
@@ -154,10 +154,10 @@ async def delete_where(
     *criteria: Any,
     commit: bool = False,
 ) -> int:
-    stmt = sql_delete(model)
+    stmt: Any = sql_delete(model)
     if criteria:
         stmt = stmt.where(*criteria)
-    result = await session.exec(cast(Any, stmt))
+    result = await session.exec(stmt)
     if commit:
         await _commit_or_rollback(session)
     rowcount = getattr(result, "rowcount", None)
@@ -190,10 +190,10 @@ async def update_where(
     if not values:
         return 0
 
-    stmt = sql_update(model).values(**values)
+    stmt: Any = sql_update(model).values(**values)
     if criteria:
         stmt = stmt.where(*criteria)
-    result = await session.exec(cast(Any, stmt))
+    result = await session.exec(stmt)
     if commit:
         await _commit_or_rollback(session)
     rowcount = getattr(result, "rowcount", None)
