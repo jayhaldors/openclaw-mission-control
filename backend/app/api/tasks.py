@@ -7,8 +7,8 @@ import json
 from collections import deque
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, cast
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -67,8 +67,9 @@ from app.services.task_dependencies import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
-    from sqlmodel.sql.expression import Select, SelectOfScalar
+    from sqlmodel.sql.expression import SelectOfScalar
 
     from app.core.auth import AuthContext
     from app.models.users import User
@@ -85,6 +86,7 @@ TASK_EVENT_TYPES = {
 SSE_SEEN_MAX = 2000
 TASK_SNIPPET_MAX_LEN = 500
 TASK_SNIPPET_TRUNCATED_LEN = 497
+TASK_EVENT_ROW_LEN = 2
 BOARD_READ_DEP = Depends(get_board_for_actor_read)
 ACTOR_DEP = Depends(require_admin_or_agent)
 SINCE_QUERY = Query(default=None)
@@ -154,7 +156,7 @@ def _parse_since(value: str | None) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is not None:
-        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.astimezone(UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -166,6 +168,24 @@ def _coerce_task_items(items: Sequence[object]) -> list[Task]:
             raise TypeError(msg)
         tasks.append(item)
     return tasks
+
+
+def _coerce_task_event_rows(
+    items: Sequence[object],
+) -> list[tuple[ActivityEvent, Task | None]]:
+    rows: list[tuple[ActivityEvent, Task | None]] = []
+    for item in items:
+        if (
+            isinstance(item, tuple)
+            and len(item) == TASK_EVENT_ROW_LEN
+            and isinstance(item[0], ActivityEvent)
+            and (isinstance(item[1], Task) or item[1] is None)
+        ):
+            rows.append((item[0], item[1]))
+            continue
+        msg = "Expected (ActivityEvent, Task | None) rows"
+        raise TypeError(msg)
+    return rows
 
 
 async def _lead_was_mentioned(
@@ -276,16 +296,16 @@ async def _fetch_task_events(
     )
     if not task_ids:
         return []
-    statement = cast(
-        "Select[tuple[ActivityEvent, Task | None]]",
+    statement = (
         select(ActivityEvent, Task)
         .outerjoin(Task, col(ActivityEvent.task_id) == col(Task.id))
         .where(col(ActivityEvent.task_id).in_(task_ids))
         .where(col(ActivityEvent.event_type).in_(TASK_EVENT_TYPES))
         .where(col(ActivityEvent.created_at) >= since)
-        .order_by(asc(col(ActivityEvent.created_at))),
+        .order_by(asc(col(ActivityEvent.created_at)))
     )
-    return list(await session.exec(statement))
+    result = await session.execute(statement)
+    return _coerce_task_event_rows(list(result.tuples().all()))
 
 
 def _serialize_comment(event: ActivityEvent) -> dict[str, object]:
@@ -718,7 +738,7 @@ async def list_tasks(
     board: Board = BOARD_READ_DEP,
     session: AsyncSession = SESSION_DEP,
     _actor: ActorContext = ACTOR_DEP,
-) -> DefaultLimitOffsetPage[TaskRead]:
+) -> LimitOffsetPage[TaskRead]:
     """List board tasks with optional status and assignment filters."""
     statement = _task_list_statement(
         board_id=board.id,
@@ -914,7 +934,7 @@ async def delete_task(
 async def list_task_comments(
     task: Task = TASK_DEP,
     session: AsyncSession = SESSION_DEP,
-) -> DefaultLimitOffsetPage[TaskCommentRead]:
+) -> LimitOffsetPage[TaskCommentRead]:
     """List comments for a task in chronological order."""
     statement = (
         select(ActivityEvent)

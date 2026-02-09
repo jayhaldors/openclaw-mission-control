@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException, status
 
 from app.api import organizations
 from app.models.organization_members import OrganizationMember
+from app.models.organizations import Organization
 from app.models.users import User
+from app.services.organizations import OrganizationContext
 
 
 @dataclass
@@ -58,6 +59,17 @@ class _FakeSession:
         self.committed += 1
 
 
+def _make_ctx(*, org_id: UUID, user_id: UUID, role: str) -> OrganizationContext:
+    return OrganizationContext(
+        organization=Organization(id=org_id, name=f"org-{org_id}"),
+        member=OrganizationMember(
+            organization_id=org_id,
+            user_id=user_id,
+            role=role,
+        ),
+    )
+
+
 @pytest.mark.asyncio
 async def test_remove_org_member_deletes_member_access_and_member() -> None:
     org_id = uuid4()
@@ -83,10 +95,7 @@ async def test_remove_org_member_deletes_member_access_and_member() -> None:
             _FakeExecResult(first_value=fallback_org_id),
         ],
     )
-    ctx = SimpleNamespace(
-        organization=SimpleNamespace(id=org_id),
-        member=SimpleNamespace(user_id=actor_user_id, role="admin"),
-    )
+    ctx = _make_ctx(org_id=org_id, user_id=actor_user_id, role="admin")
 
     await organizations.remove_org_member(member_id=member_id, session=session, ctx=ctx)
 
@@ -109,10 +118,7 @@ async def test_remove_org_member_disallows_self_removal() -> None:
         role="member",
     )
     session = _FakeSession(exec_results=[_FakeExecResult(first_value=member)])
-    ctx = SimpleNamespace(
-        organization=SimpleNamespace(id=org_id),
-        member=SimpleNamespace(user_id=user_id, role="owner"),
-    )
+    ctx = _make_ctx(org_id=org_id, user_id=user_id, role="owner")
 
     with pytest.raises(HTTPException) as exc_info:
         await organizations.remove_org_member(member_id=member.id, session=session, ctx=ctx)
@@ -133,10 +139,7 @@ async def test_remove_org_member_requires_owner_to_remove_owner() -> None:
         role="owner",
     )
     session = _FakeSession(exec_results=[_FakeExecResult(first_value=member)])
-    ctx = SimpleNamespace(
-        organization=SimpleNamespace(id=org_id),
-        member=SimpleNamespace(user_id=uuid4(), role="admin"),
-    )
+    ctx = _make_ctx(org_id=org_id, user_id=uuid4(), role="admin")
 
     with pytest.raises(HTTPException) as exc_info:
         await organizations.remove_org_member(member_id=member.id, session=session, ctx=ctx)
@@ -162,10 +165,7 @@ async def test_remove_org_member_rejects_removing_last_owner() -> None:
             _FakeExecResult(all_values=[member]),
         ],
     )
-    ctx = SimpleNamespace(
-        organization=SimpleNamespace(id=org_id),
-        member=SimpleNamespace(user_id=uuid4(), role="owner"),
-    )
+    ctx = _make_ctx(org_id=org_id, user_id=uuid4(), role="owner")
 
     with pytest.raises(HTTPException) as exc_info:
         await organizations.remove_org_member(member_id=member.id, session=session, ctx=ctx)

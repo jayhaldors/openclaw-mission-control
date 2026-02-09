@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class OrganizationMember(QueryModel, table=True):
     """Membership row linking a user to an organization and permissions."""
 
-    __tablename__ = "organization_members"
+    __tablename__ = "organization_members"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
             "organization_id",

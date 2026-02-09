@@ -16,7 +16,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class BoardGroup(TenantScoped, table=True):
     """Logical grouping container for boards within an organization."""
 
-    __tablename__ = "board_groups"
+    __tablename__ = "board_groups"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     organization_id: UUID = Field(foreign_key="organizations.id", index=True)

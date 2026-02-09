@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class Organization(QueryModel, table=True):
     """Top-level organization tenant record."""
 
-    __tablename__ = "organizations"
+    __tablename__ = "organizations"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (UniqueConstraint("name", name="uq_organizations_name"),)
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)

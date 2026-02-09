@@ -50,7 +50,8 @@ async def test_get_session_rolls_back_on_dependency_error(monkeypatch: pytest.Mo
     class _FakeDependencySession:
         rollbacks: int = 0
 
-        def in_transaction(self) -> bool:
+        @staticmethod
+        def in_transaction() -> bool:
             return True
 
         async def rollback(self) -> None:
@@ -89,16 +90,19 @@ async def test_create_rolls_back_when_commit_fails() -> None:
         def add(self, value: Any) -> None:
             self.added.append(value)
 
-        async def flush(self) -> None:
+        @staticmethod
+        async def flush() -> None:
             return None
 
-        async def commit(self) -> None:
+        @staticmethod
+        async def commit() -> None:
             raise _CommitError("commit failed")
 
         async def rollback(self) -> None:
             self.rollback_calls += 1
 
-        async def refresh(self, _value: Any) -> None:
+        @staticmethod
+        async def refresh(_value: Any) -> None:
             return None
 
     session = _FailCommitSession()
@@ -124,7 +128,8 @@ async def test_delete_where_rolls_back_when_commit_fails() -> None:
             self.exec_calls += 1
             return SimpleNamespace(rowcount=3)
 
-        async def commit(self) -> None:
+        @staticmethod
+        async def commit() -> None:
             raise _CommitError("commit failed")
 
         async def rollback(self) -> None:

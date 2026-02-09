@@ -16,7 +16,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class TaskFingerprint(QueryModel, table=True):
     """Hashed task-content fingerprint associated with a board and task."""
 
-    __tablename__ = "task_fingerprints"
+    __tablename__ = "task_fingerprints"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     board_id: UUID = Field(foreign_key="boards.id", index=True)

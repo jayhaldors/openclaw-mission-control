@@ -16,7 +16,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class Task(TenantScoped, table=True):
     """Board-scoped task entity with ownership, status, and timing fields."""
 
-    __tablename__ = "tasks"
+    __tablename__ = "tasks"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     board_id: UUID | None = Field(default=None, foreign_key="boards.id", index=True)

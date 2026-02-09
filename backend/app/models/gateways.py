@@ -16,7 +16,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class Gateway(QueryModel, table=True):
     """Configured external gateway endpoint and authentication settings."""
 
-    __tablename__ = "gateways"
+    __tablename__ = "gateways"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     organization_id: UUID = Field(foreign_key="organizations.id", index=True)

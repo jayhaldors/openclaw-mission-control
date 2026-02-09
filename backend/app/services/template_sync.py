@@ -132,8 +132,8 @@ class _GatewayBackoff:
     def reset(self) -> None:
         self._delay_s = self._base_delay_s
 
+    @staticmethod
     async def _attempt(
-        self,
         fn: Callable[[], Awaitable[T]],
     ) -> tuple[T | None, OpenClawGatewayError | None]:
         try:

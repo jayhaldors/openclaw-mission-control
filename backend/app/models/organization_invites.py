@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class OrganizationInvite(QueryModel, table=True):
     """Invitation record granting prospective organization access."""
 
-    __tablename__ = "organization_invites"
+    __tablename__ = "organization_invites"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (UniqueConstraint("token", name="uq_org_invites_token"),)
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)

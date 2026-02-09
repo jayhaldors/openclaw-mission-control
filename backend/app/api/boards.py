@@ -50,6 +50,7 @@ from app.services.board_snapshot import build_board_snapshot
 from app.services.organizations import OrganizationContext, board_access_filter
 
 if TYPE_CHECKING:
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter(prefix="/boards", tags=["boards"])
@@ -246,7 +247,7 @@ async def list_boards(
     board_group_id: UUID | None = BOARD_GROUP_ID_QUERY,
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_MEMBER_DEP,
-) -> DefaultLimitOffsetPage[BoardRead]:
+) -> LimitOffsetPage[BoardRead]:
     """List boards visible to the current organization member."""
     statement = select(Board).where(board_access_filter(ctx.member, write=False))
     if gateway_id is not None:

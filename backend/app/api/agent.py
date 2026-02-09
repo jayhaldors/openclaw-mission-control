@@ -76,6 +76,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from uuid import UUID
 
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.models.activity_events import ActivityEvent
@@ -222,7 +223,7 @@ async def _require_gateway_board(
 async def list_boards(
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
-) -> DefaultLimitOffsetPage[BoardRead]:
+) -> LimitOffsetPage[BoardRead]:
     """List boards visible to the authenticated agent."""
     statement = select(Board)
     if agent_ctx.agent.board_id:
@@ -246,7 +247,7 @@ async def list_agents(
     board_id: UUID | None = BOARD_ID_QUERY,
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
-) -> DefaultLimitOffsetPage[AgentRead]:
+) -> LimitOffsetPage[AgentRead]:
     """List agents, optionally filtered to a board."""
     statement = select(Agent)
     if agent_ctx.agent.board_id:
@@ -277,7 +278,7 @@ async def list_tasks(
     board: Board = BOARD_DEP,
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
-) -> DefaultLimitOffsetPage[TaskRead]:
+) -> LimitOffsetPage[TaskRead]:
     """List tasks on a board with optional status and assignment filters."""
     _guard_board_access(agent_ctx, board)
     return await tasks_api.list_tasks(
@@ -414,7 +415,7 @@ async def list_task_comments(
     task: Task = TASK_DEP,
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
-) -> DefaultLimitOffsetPage[TaskCommentRead]:
+) -> LimitOffsetPage[TaskCommentRead]:
     """List comments for a task visible to the authenticated agent."""
     if (
         agent_ctx.agent.board_id
@@ -460,7 +461,7 @@ async def list_board_memory(
     board: Board = BOARD_DEP,
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
-) -> DefaultLimitOffsetPage[BoardMemoryRead]:
+) -> LimitOffsetPage[BoardMemoryRead]:
     """List board memory entries with optional chat filtering."""
     _guard_board_access(agent_ctx, board)
     return await board_memory_api.list_board_memory(
@@ -497,7 +498,7 @@ async def list_approvals(
     board: Board = BOARD_DEP,
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
-) -> DefaultLimitOffsetPage[ApprovalRead]:
+) -> LimitOffsetPage[ApprovalRead]:
     """List approvals for a board."""
     _guard_board_access(agent_ctx, board)
     return await approvals_api.list_approvals(
@@ -960,12 +961,12 @@ async def broadcast_gateway_lead_message(
     sent = 0
     failed = 0
 
-    async def _send_to_board(board: Board) -> GatewayLeadBroadcastBoardResult:
+    async def _send_to_board(target_board: Board) -> GatewayLeadBroadcastBoardResult:
         try:
             lead, _lead_created = await ensure_board_lead_agent(
                 session,
                 request=LeadAgentRequest(
-                    board=board,
+                    board=target_board,
                     gateway=gateway,
                     config=config,
                     user=None,
@@ -975,14 +976,14 @@ async def broadcast_gateway_lead_message(
             lead_session_key = _require_lead_session_key(lead)
             message = (
                 f"{header}\n"
-                f"Board: {board.name}\n"
-                f"Board ID: {board.id}\n"
+                f"Board: {target_board.name}\n"
+                f"Board ID: {target_board.id}\n"
                 f"From agent: {agent_ctx.agent.name}\n"
                 f"{correlation_line}\n"
                 f"{payload.content.strip()}\n\n"
                 "Reply to the gateway main by writing a NON-chat memory item "
                 "on this board:\n"
-                f"POST {base_url}/api/v1/agent/boards/{board.id}/memory\n"
+                f"POST {base_url}/api/v1/agent/boards/{target_board.id}/memory\n"
                 f'Body: {{"content":"...","tags":{tags_json},'
                 f'"source":"{reply_source}"}}\n'
                 "Do NOT reply in OpenClaw chat."
@@ -990,14 +991,14 @@ async def broadcast_gateway_lead_message(
             await ensure_session(lead_session_key, config=config, label=lead.name)
             await send_message(message, session_key=lead_session_key, config=config)
             return GatewayLeadBroadcastBoardResult(
-                board_id=board.id,
+                board_id=target_board.id,
                 lead_agent_id=lead.id,
                 lead_agent_name=lead.name,
                 ok=True,
             )
         except (HTTPException, OpenClawGatewayError, ValueError) as exc:
             return GatewayLeadBroadcastBoardResult(
-                board_id=board.id,
+                board_id=target_board.id,
                 ok=False,
                 error=str(exc),
             )

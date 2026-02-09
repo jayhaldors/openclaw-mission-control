@@ -18,7 +18,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class Agent(QueryModel, table=True):
     """Agent configuration and lifecycle state persisted in the database."""
 
-    __tablename__ = "agents"
+    __tablename__ = "agents"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     board_id: UUID | None = Field(default=None, foreign_key="boards.id", index=True)

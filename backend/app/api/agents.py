@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -65,6 +65,7 @@ from app.services.organizations import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlalchemy.sql.elements import ColumnElement
     from sqlmodel.ext.asyncio.session import AsyncSession
     from sqlmodel.sql.expression import SelectOfScalar
@@ -115,7 +116,7 @@ def _parse_since(value: str | None) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is not None:
-        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.astimezone(UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -564,7 +565,7 @@ async def _validate_agent_update_inputs(
     updates: dict[str, Any],
     make_main: bool | None,
 ) -> None:
-    if make_main is True and not is_org_admin(ctx.member):
+    if make_main and not is_org_admin(ctx.member):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     if "status" in updates:
         raise HTTPException(
@@ -597,7 +598,7 @@ async def _apply_agent_update_mutations(
     )
     gateway_for_main: Gateway | None = None
 
-    if make_main is True:
+    if make_main:
         board_source = updates.get("board_id") or agent.board_id
         board_for_main = await _require_board(session, board_source)
         gateway_for_main, _ = await _require_gateway(session, board_for_main)
@@ -605,10 +606,10 @@ async def _apply_agent_update_mutations(
         agent.is_board_lead = False
         agent.openclaw_session_id = gateway_for_main.main_session_key
         main_gateway = gateway_for_main
-    elif make_main is False:
+    elif make_main is not None:
         agent.openclaw_session_id = None
 
-    if make_main is not True and "board_id" in updates:
+    if not make_main and "board_id" in updates:
         await _require_board(session, updates["board_id"])
     for key, value in updates.items():
         setattr(agent, key, value)
@@ -633,7 +634,7 @@ async def _resolve_agent_update_target(
     main_gateway: Gateway | None,
     gateway_for_main: Gateway | None,
 ) -> _AgentUpdateProvisionTarget:
-    if make_main is True:
+    if make_main:
         if gateway_for_main is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -955,7 +956,7 @@ async def list_agents(
     gateway_id: UUID | None = GATEWAY_ID_QUERY,
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_ADMIN_DEP,
-) -> DefaultLimitOffsetPage[AgentRead]:
+) -> LimitOffsetPage[AgentRead]:
     """List agents visible to the active organization admin."""
     main_session_keys = await _get_gateway_main_session_keys(session)
     board_ids = await list_accessible_board_ids(session, member=ctx.member, write=False)

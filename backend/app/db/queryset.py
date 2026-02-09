@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from sqlmodel import select
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Mapped
+    from sqlalchemy.sql.elements import ColumnElement
     from sqlmodel.ext.asyncio.session import AsyncSession
     from sqlmodel.sql.expression import SelectOfScalar
 
@@ -20,15 +22,18 @@ class QuerySet(Generic[ModelT]):
 
     statement: SelectOfScalar[ModelT]
 
-    def filter(self, *criteria: object) -> QuerySet[ModelT]:
+    def filter(
+        self,
+        *criteria: ColumnElement[bool] | bool,
+    ) -> QuerySet[ModelT]:
         """Return a new queryset with additional SQL criteria."""
-        statement = cast(
-            "SelectOfScalar[ModelT]",
-            cast(Any, self.statement).where(*criteria),
-        )
+        statement = self.statement.where(*criteria)
         return replace(self, statement=statement)
 
-    def where(self, *criteria: object) -> QuerySet[ModelT]:
+    def where(
+        self,
+        *criteria: ColumnElement[bool] | bool,
+    ) -> QuerySet[ModelT]:
         """Alias for `filter` to mirror SQLAlchemy naming."""
         return self.filter(*criteria)
 
@@ -37,12 +42,12 @@ class QuerySet(Generic[ModelT]):
         statement = self.statement.filter_by(**kwargs)
         return replace(self, statement=statement)
 
-    def order_by(self, *ordering: object) -> QuerySet[ModelT]:
+    def order_by(
+        self,
+        *ordering: Mapped[Any] | ColumnElement[Any] | str,
+    ) -> QuerySet[ModelT]:
         """Return a new queryset with ordering clauses applied."""
-        statement = cast(
-            "SelectOfScalar[ModelT]",
-            cast(Any, self.statement).order_by(*ordering),
-        )
+        statement = self.statement.order_by(*ordering)
         return replace(self, statement=statement)
 
     def limit(self, value: int) -> QuerySet[ModelT]:

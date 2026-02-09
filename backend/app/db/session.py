@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import anyio
 from alembic import command
 from alembic.config import Config
 from sqlalchemy.exc import SQLAlchemyError
@@ -65,11 +65,11 @@ async def init_db() -> None:
         versions_dir = Path(__file__).resolve().parents[2] / "migrations" / "versions"
         if any(versions_dir.glob("*.py")):
             logger.info("Running migrations on startup")
-            await anyio.to_thread.run_sync(run_migrations)
+            await asyncio.to_thread(run_migrations)
             return
         logger.warning("No migration revisions found; falling back to create_all")
 
-    async with async_engine.begin() as conn:
+    async with async_engine.connect() as conn, conn.begin():
         await conn.run_sync(SQLModel.metadata.create_all)
 
 

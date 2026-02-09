@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class BoardMemory(QueryModel, table=True):
     """Persisted memory item attached directly to a board."""
 
-    __tablename__ = "board_memory"
+    __tablename__ = "board_memory"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     board_id: UUID = Field(foreign_key="boards.id", index=True)

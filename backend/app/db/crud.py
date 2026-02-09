@@ -132,7 +132,7 @@ async def save(
     return obj
 
 
-async def delete(session: AsyncSession, obj: ModelT, *, commit: bool = True) -> None:
+async def delete(session: AsyncSession, obj: SQLModel, *, commit: bool = True) -> None:
     """Delete an object with optional commit."""
     await session.delete(obj)
     if commit:

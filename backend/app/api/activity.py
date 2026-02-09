@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -36,6 +36,7 @@ from app.services.organizations import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -63,7 +64,7 @@ def _parse_since(value: str | None) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is not None:
-        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.astimezone(UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -145,7 +146,7 @@ async def _fetch_task_comment_events(
 async def list_activity(
     session: AsyncSession = SESSION_DEP,
     actor: ActorContext = ACTOR_DEP,
-) -> DefaultLimitOffsetPage[ActivityEventRead]:
+) -> LimitOffsetPage[ActivityEventRead]:
     """List activity events visible to the calling actor."""
     statement = select(ActivityEvent)
     if actor.actor_type == "agent" and actor.agent:
@@ -174,7 +175,7 @@ async def list_task_comment_feed(
     board_id: UUID | None = BOARD_ID_QUERY,
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_MEMBER_DEP,
-) -> DefaultLimitOffsetPage[ActivityTaskCommentFeedItemRead]:
+) -> LimitOffsetPage[ActivityTaskCommentFeedItemRead]:
     """List task-comment feed items for accessible boards."""
     statement = (
         select(ActivityEvent, Task, Board, Agent)

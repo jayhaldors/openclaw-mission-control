@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -35,6 +35,7 @@ from app.schemas.pagination import DefaultLimitOffsetPage
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.models.boards import Board
@@ -79,7 +80,7 @@ def _parse_since(value: str | None) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is not None:
-        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.astimezone(UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -118,7 +119,7 @@ async def list_approvals(
     board: Board = BOARD_READ_DEP,
     session: AsyncSession = SESSION_DEP,
     _actor: ActorContext = ACTOR_DEP,
-) -> DefaultLimitOffsetPage[ApprovalRead]:
+) -> LimitOffsetPage[ApprovalRead]:
     """List approvals for a board, optionally filtering by status."""
     statement = Approval.objects.filter_by(board_id=board.id)
     if status_filter:

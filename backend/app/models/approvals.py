@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class Approval(QueryModel, table=True):
     """Approval request and decision metadata for gated operations."""
 
-    __tablename__ = "approvals"
+    __tablename__ = "approvals"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     board_id: UUID = Field(foreign_key="boards.id", index=True)

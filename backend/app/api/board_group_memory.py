@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -53,6 +53,7 @@ from app.services.organizations import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.services.organizations import OrganizationContext
@@ -90,7 +91,7 @@ def _parse_since(value: str | None) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is not None:
-        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.astimezone(UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -343,7 +344,7 @@ async def list_board_group_memory(
     is_chat: bool | None = IS_CHAT_QUERY,
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_MEMBER_DEP,
-) -> DefaultLimitOffsetPage[BoardGroupMemoryRead]:
+) -> LimitOffsetPage[BoardGroupMemoryRead]:
     """List board-group memory entries for a specific group."""
     await _require_group_access(session, group_id=group_id, ctx=ctx, write=False)
     statement = (
@@ -439,7 +440,7 @@ async def list_board_group_memory_for_board(
     is_chat: bool | None = IS_CHAT_QUERY,
     board: Board = BOARD_READ_DEP,
     session: AsyncSession = SESSION_DEP,
-) -> DefaultLimitOffsetPage[BoardGroupMemoryRead]:
+) -> LimitOffsetPage[BoardGroupMemoryRead]:
     """List memory entries for the board's linked group."""
     group_id = board.board_group_id
     if group_id is None:

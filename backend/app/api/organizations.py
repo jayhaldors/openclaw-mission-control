@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -65,6 +65,9 @@ from app.services.organizations import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.core.auth import AuthContext
@@ -369,7 +372,7 @@ async def get_my_membership(
 async def list_org_members(
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_MEMBER_DEP,
-) -> DefaultLimitOffsetPage[OrganizationMemberRead]:
+) -> LimitOffsetPage[OrganizationMemberRead]:
     """List members for the active organization."""
     statement = (
         select(OrganizationMember, User)
@@ -542,7 +545,7 @@ async def remove_org_member(
 async def list_org_invites(
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_ADMIN_DEP,
-) -> DefaultLimitOffsetPage[OrganizationInviteRead]:
+) -> LimitOffsetPage[OrganizationInviteRead]:
     """List pending invites for the active organization."""
     statement = (
         OrganizationInvite.objects.filter_by(organization_id=ctx.organization.id)

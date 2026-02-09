@@ -738,7 +738,7 @@ def _should_include_bootstrap(
     if not existing_files:
         return False
     entry = existing_files.get("BOOTSTRAP.md")
-    return not (entry and entry.get("missing") is True)
+    return not bool(entry and entry.get("missing"))
 
 
 async def _set_agent_files(
@@ -753,7 +753,7 @@ async def _set_agent_files(
             continue
         if name in PRESERVE_AGENT_EDITABLE_FILES:
             entry = existing_files.get(name)
-            if entry and entry.get("missing") is not True:
+            if entry and not bool(entry.get("missing")):
                 continue
         try:
             await openclaw_call(

@@ -117,20 +117,20 @@ def _has_cycle(nodes: Sequence[UUID], edges: Mapping[UUID, set[UUID]]) -> bool:
     visited: set[UUID] = set()
     in_stack: set[UUID] = set()
 
-    def dfs(node: UUID) -> bool:
-        if node in in_stack:
+    def dfs(current: UUID) -> bool:
+        if current in in_stack:
             return True
-        if node in visited:
+        if current in visited:
             return False
-        visited.add(node)
-        in_stack.add(node)
-        for nxt in edges.get(node, set()):
+        visited.add(current)
+        in_stack.add(current)
+        for nxt in edges.get(current, set()):
             if dfs(nxt):
                 return True
-        in_stack.remove(node)
+        in_stack.remove(current)
         return False
 
-    return any(dfs(node) for node in nodes)
+    return any(dfs(start_node) for start_node in nodes)
 
 
 async def validate_dependency_update(

@@ -12,7 +12,7 @@ from app.models.base import QueryModel
 class User(QueryModel, table=True):
     """Application user account and profile attributes."""
 
-    __tablename__ = "users"
+    __tablename__ = "users"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     clerk_user_id: str = Field(index=True, unique=True)

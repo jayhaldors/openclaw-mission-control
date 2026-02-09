@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class OrganizationBoardAccess(QueryModel, table=True):
     """Member-specific board permissions within an organization."""
 
-    __tablename__ = "organization_board_access"
+    __tablename__ = "organization_board_access"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
             "organization_member_id",

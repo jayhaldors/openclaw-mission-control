@@ -4,17 +4,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import Any
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, status
 
 from app.api import organizations
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
+from app.models.organization_members import OrganizationMember
+from app.models.organizations import Organization
+from app.services.organizations import OrganizationContext
 
 
 @dataclass
@@ -35,15 +34,19 @@ class _FakeSession:
 @pytest.mark.asyncio
 async def test_delete_my_org_cleans_dependents_before_organization_delete() -> None:
     """Delete flow should remove dependent rows before the organization row."""
-    session = _FakeSession()
+    session: Any = _FakeSession()
     org_id = uuid4()
-    ctx = SimpleNamespace(
-        organization=SimpleNamespace(id=org_id),
-        member=SimpleNamespace(role="owner"),
+    ctx = OrganizationContext(
+        organization=Organization(id=org_id, name=f"org-{org_id}"),
+        member=OrganizationMember(
+            organization_id=org_id,
+            user_id=uuid4(),
+            role="owner",
+        ),
     )
 
     await organizations.delete_my_org(
-        session=cast("AsyncSession", session),
+        session=session,
         ctx=ctx,
     )
 
@@ -77,15 +80,20 @@ async def test_delete_my_org_cleans_dependents_before_organization_delete() -> N
 @pytest.mark.asyncio
 async def test_delete_my_org_requires_owner_role() -> None:
     """Delete flow should reject non-owner members with HTTP 403."""
-    session = _FakeSession()
-    ctx = SimpleNamespace(
-        organization=SimpleNamespace(id=uuid4()),
-        member=SimpleNamespace(role="admin"),
+    session: Any = _FakeSession()
+    org_id = uuid4()
+    ctx = OrganizationContext(
+        organization=Organization(id=org_id, name=f"org-{org_id}"),
+        member=OrganizationMember(
+            organization_id=org_id,
+            user_id=uuid4(),
+            role="admin",
+        ),
     )
 
     with pytest.raises(HTTPException) as exc_info:
         await organizations.delete_my_org(
-            session=cast("AsyncSession", session),
+            session=session,
             ctx=ctx,
         )
 

@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any
 
@@ -128,7 +128,7 @@ class JsonFormatter(logging.Formatter):
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(
                 record.created,
-                tz=timezone.utc,
+                tz=UTC,
             ).isoformat(),
             "level": record.levelname,
             "logger": record.name,
@@ -153,6 +153,7 @@ class JsonFormatter(logging.Formatter):
 class KeyValueFormatter(logging.Formatter):
     """Formatter that appends extra fields as `key=value` pairs."""
 
+    # noinspection PyMethodMayBeStatic
     def format(self, record: logging.LogRecord) -> str:
         """Render a log line with appended non-standard record fields."""
         base = super().format(record)

@@ -20,7 +20,7 @@ from app.services import task_dependencies as td
 async def _make_engine() -> AsyncEngine:
     # Single shared in-memory db per engine.
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
+    async with engine.connect() as conn, conn.begin():
         await conn.run_sync(SQLModel.metadata.create_all)
     return engine
 

@@ -4,16 +4,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import Any
 from uuid import uuid4
 
 import pytest
 
 from app.api import board_groups
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
+from app.models.organization_members import OrganizationMember
+from app.models.organizations import Organization
+from app.services.organizations import OrganizationContext
 
 
 @dataclass
@@ -47,12 +46,20 @@ async def test_delete_board_group_cleans_group_memory_first(
         _fake_require_group_access,
     )
 
-    session = _FakeSession()
-    ctx = SimpleNamespace(member=object())
+    session: Any = _FakeSession()
+    org_id = uuid4()
+    ctx = OrganizationContext(
+        organization=Organization(id=org_id, name=f"org-{org_id}"),
+        member=OrganizationMember(
+            organization_id=org_id,
+            user_id=uuid4(),
+            role="admin",
+        ),
+    )
 
     await board_groups.delete_board_group(
         group_id=group_id,
-        session=cast("AsyncSession", session),
+        session=session,
         ctx=ctx,
     )
 

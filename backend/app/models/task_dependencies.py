@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class TaskDependency(TenantScoped, table=True):
     """Directed dependency edge between two tasks in the same board."""
 
-    __tablename__ = "task_dependencies"
+    __tablename__ = "task_dependencies"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
             "task_id",

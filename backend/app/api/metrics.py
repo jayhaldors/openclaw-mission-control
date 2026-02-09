@@ -8,7 +8,8 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import DateTime, case, cast, func
+from sqlalchemy import DateTime, case, func
+from sqlalchemy import cast as sql_cast
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -152,7 +153,7 @@ async def _query_cycle_time(
     board_ids: list[UUID],
 ) -> DashboardRangeSeries:
     bucket_col = func.date_trunc(range_spec.bucket, Task.updated_at).label("bucket")
-    in_progress = cast(Task.in_progress_at, DateTime)
+    in_progress = sql_cast(Task.in_progress_at, DateTime)
     duration_hours = func.extract("epoch", Task.updated_at - in_progress) / 3600.0
     statement = (
         select(bucket_col, func.avg(duration_hours))
@@ -249,7 +250,7 @@ async def _median_cycle_time_7d(
 ) -> float | None:
     now = utcnow()
     start = now - timedelta(days=7)
-    in_progress = cast(Task.in_progress_at, DateTime)
+    in_progress = sql_cast(Task.in_progress_at, DateTime)
     duration_hours = func.extract("epoch", Task.updated_at - in_progress) / 3600.0
     statement = (
         select(func.percentile_cont(0.5).within_group(duration_hours))

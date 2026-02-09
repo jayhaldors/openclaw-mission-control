@@ -56,7 +56,8 @@ async def _await_response(
         data = json.loads(raw)
 
         if data.get("type") == "res" and data.get("id") == request_id:
-            if data.get("ok") is False:
+            ok = data.get("ok")
+            if ok is not None and not ok:
                 error = data.get("error", {}).get("message", "Gateway error")
                 raise OpenClawGatewayError(error)
             return data.get("payload")
@@ -135,14 +136,14 @@ async def openclaw_call(
             first_message = None
             try:
                 first_message = await asyncio.wait_for(ws.recv(), timeout=2)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 first_message = None
             await _ensure_connected(ws, first_message, config)
             return await _send_request(ws, method, params)
     except OpenClawGatewayError:
         raise
     except (
-        asyncio.TimeoutError,
+        TimeoutError,
         ConnectionError,
         OSError,
         ValueError,

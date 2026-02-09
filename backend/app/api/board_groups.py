@@ -50,6 +50,7 @@ from app.services.organizations import (
 )
 
 if TYPE_CHECKING:
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.models.organization_members import OrganizationMember
@@ -103,7 +104,7 @@ async def _require_group_access(
 async def list_board_groups(
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_MEMBER_DEP,
-) -> DefaultLimitOffsetPage[BoardGroupRead]:
+) -> LimitOffsetPage[BoardGroupRead]:
     """List board groups in the active organization."""
     if member_all_boards_read(ctx.member):
         statement = select(BoardGroup).where(

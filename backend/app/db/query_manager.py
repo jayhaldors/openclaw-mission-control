@@ -13,6 +13,8 @@ from app.db.queryset import QuerySet, qs
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from sqlalchemy.sql.elements import ColumnElement
+
 ModelT = TypeVar("ModelT", bound=SQLModel)
 
 
@@ -31,11 +33,17 @@ class ModelManager(Generic[ModelT]):
         """Return a queryset that yields no rows."""
         return qs(self.model).filter(false())
 
-    def filter(self, *criteria: object) -> QuerySet[ModelT]:
+    def filter(
+        self,
+        *criteria: ColumnElement[bool] | bool,
+    ) -> QuerySet[ModelT]:
         """Return queryset filtered by SQL criteria expressions."""
         return self.all().filter(*criteria)
 
-    def where(self, *criteria: object) -> QuerySet[ModelT]:
+    def where(
+        self,
+        *criteria: ColumnElement[bool] | bool,
+    ) -> QuerySet[ModelT]:
         """Alias for `filter`."""
         return self.filter(*criteria)
 
@@ -76,6 +84,7 @@ class ModelManager(Generic[ModelT]):
 class ManagerDescriptor(Generic[ModelT]):
     """Descriptor that exposes a model-bound `ModelManager` as `.objects`."""
 
+    # noinspection PyMethodMayBeStatic
     def __get__(self, instance: object, owner: type[ModelT]) -> ModelManager[ModelT]:
         """Return a fresh manager bound to the owning model class."""
         return ModelManager(owner)

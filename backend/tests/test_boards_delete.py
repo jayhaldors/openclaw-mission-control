@@ -4,16 +4,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import Any
 from uuid import uuid4
 
 import pytest
 
 from app.api import boards
 from app.models.boards import Board
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
 
 _NO_EXEC_RESULTS_ERROR = "No more exec_results left for session.exec"
 
@@ -47,7 +44,7 @@ class _FakeSession:
 @pytest.mark.asyncio
 async def test_delete_board_cleans_org_board_access_rows() -> None:
     """Deleting a board should clear org-board access rows before commit."""
-    session = _FakeSession(exec_results=[[], []])
+    session: Any = _FakeSession(exec_results=[[], []])
     board = Board(
         id=uuid4(),
         organization_id=uuid4(),
@@ -57,7 +54,7 @@ async def test_delete_board_cleans_org_board_access_rows() -> None:
     )
 
     await boards.delete_board(
-        session=cast("AsyncSession", session),
+        session=session,
         board=board,
     )
 

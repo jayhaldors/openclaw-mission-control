@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class BoardOnboardingSession(QueryModel, table=True):
     """Persisted onboarding conversation and draft goal data for a board."""
 
-    __tablename__ = "board_onboarding_sessions"
+    __tablename__ = "board_onboarding_sessions"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     board_id: UUID = Field(foreign_key="boards.id", index=True)

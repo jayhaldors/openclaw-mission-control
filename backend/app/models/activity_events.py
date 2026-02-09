@@ -16,7 +16,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class ActivityEvent(QueryModel, table=True):
     """Discrete activity event tied to tasks and agents."""
 
-    __tablename__ = "activity_events"
+    __tablename__ = "activity_events"  # pyright: ignore[reportAssignmentType]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     event_type: str = Field(index=True)

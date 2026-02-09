@@ -34,11 +34,13 @@ class BoardBase(SQLModel):
 class BoardCreate(BoardBase):
     """Payload for creating a board."""
 
-    gateway_id: UUID
+    gateway_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_goal_fields(self) -> Self:
-        """Require goal details when creating a confirmed goal board."""
+        """Require gateway and goal details when creating a confirmed goal board."""
+        if self.gateway_id is None:
+            raise ValueError(_ERR_GATEWAY_REQUIRED)
         if (
             self.board_type == "goal"
             and self.goal_confirmed

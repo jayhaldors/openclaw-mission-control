@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -81,17 +81,47 @@ def install_error_handling(app: FastAPI) -> None:
 
     app.add_exception_handler(
         RequestValidationError,
-        cast(ExceptionHandler, _request_validation_handler),
+        _request_validation_exception_handler,
     )
     app.add_exception_handler(
         ResponseValidationError,
-        cast(ExceptionHandler, _response_validation_handler),
+        _response_validation_exception_handler,
     )
     app.add_exception_handler(
         StarletteHTTPException,
-        cast(ExceptionHandler, _http_exception_handler),
+        _http_exception_exception_handler,
     )
     app.add_exception_handler(Exception, _unhandled_exception_handler)
+
+
+async def _request_validation_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> Response:
+    if not isinstance(exc, RequestValidationError):
+        msg = "Expected RequestValidationError"
+        raise TypeError(msg)
+    return await _request_validation_handler(request, exc)
+
+
+async def _response_validation_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> Response:
+    if not isinstance(exc, ResponseValidationError):
+        msg = "Expected ResponseValidationError"
+        raise TypeError(msg)
+    return await _response_validation_handler(request, exc)
+
+
+async def _http_exception_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> Response:
+    if not isinstance(exc, StarletteHTTPException):
+        msg = "Expected StarletteHTTPException"
+        raise TypeError(msg)
+    return await _http_exception_handler(request, exc)
 
 
 def _get_request_id(request: Request) -> str | None:

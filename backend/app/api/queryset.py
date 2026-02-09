@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from fastapi import HTTPException, status
 
 from app.db.queryset import QuerySet, qs
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Mapped
+    from sqlalchemy.sql.elements import ColumnElement
     from sqlmodel.ext.asyncio.session import AsyncSession
     from sqlmodel.sql.expression import SelectOfScalar
 
@@ -27,11 +29,17 @@ class APIQuerySet(Generic[ModelT]):
         """Expose the underlying SQL statement for advanced composition."""
         return self.queryset.statement
 
-    def filter(self, *criteria: object) -> APIQuerySet[ModelT]:
+    def filter(
+        self,
+        *criteria: ColumnElement[bool] | bool,
+    ) -> APIQuerySet[ModelT]:
         """Return a new queryset with additional SQL criteria applied."""
         return APIQuerySet(self.queryset.filter(*criteria))
 
-    def order_by(self, *ordering: object) -> APIQuerySet[ModelT]:
+    def order_by(
+        self,
+        *ordering: Mapped[Any] | ColumnElement[Any] | str,
+    ) -> APIQuerySet[ModelT]:
         """Return a new queryset with ordering clauses applied."""
         return APIQuerySet(self.queryset.order_by(*ordering))
 

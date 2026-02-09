@@ -46,6 +46,7 @@ from app.services.template_sync import (
 )
 
 if TYPE_CHECKING:
+    from fastapi_pagination.limit_offset import LimitOffsetPage
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from app.services.organizations import OrganizationContext
@@ -224,7 +225,7 @@ async def _ensure_main_agent(
 async def list_gateways(
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_ADMIN_DEP,
-) -> DefaultLimitOffsetPage[GatewayRead]:
+) -> LimitOffsetPage[GatewayRead]:
     """List gateways for the caller's organization."""
     statement = (
         Gateway.objects.filter_by(organization_id=ctx.organization.id)

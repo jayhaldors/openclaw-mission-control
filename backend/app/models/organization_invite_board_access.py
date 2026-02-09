@@ -17,7 +17,7 @@ RUNTIME_ANNOTATION_TYPES = (datetime,)
 class OrganizationInviteBoardAccess(QueryModel, table=True):
     """Invite-specific board permissions applied after invite acceptance."""
 
-    __tablename__ = "organization_invite_board_access"
+    __tablename__ = "organization_invite_board_access"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
             "organization_invite_id",
