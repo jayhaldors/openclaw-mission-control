@@ -1,0 +1,34 @@
+# Mission Control docs
+
+This folder is the canonical documentation set for Mission Control.
+
+## Start here (by role)
+
+- **Contributor**: start with [Quickstart](../README.md#quick-start-self-host-with-docker-compose) → [Development](development.md) → [Contributing](contributing.md)
+- **Maintainer**: start with [Architecture](05-architecture.md) → [Repo tour](04-repo-tour.md) → [API reference](07-api-reference.md)
+- **Operator/SRE**: start with [Ops / runbooks](09-ops-runbooks.md) → [Troubleshooting](10-troubleshooting.md)
+
+## Table of contents (IA)
+
+1. [Overview](01-overview.md)
+2. [Quickstart](02-quickstart.md)
+3. [Development](03-development.md)
+4. [Repo tour](04-repo-tour.md)
+5. [Architecture](05-architecture.md)
+6. [Configuration](06-configuration.md)
+7. [API reference](07-api-reference.md)
+8. [Agents & skills](08-agents-and-skills.md)
+9. [Ops / runbooks](09-ops-runbooks.md)
+10. [Troubleshooting](10-troubleshooting.md)
+11. [Contributing](11-contributing.md)
+
+## Existing deep-dive docs
+
+Some deeper docs already exist under `docs/**` directories; the IA pages above link to them where appropriate:
+- `docs/architecture/README.md`
+- `docs/deployment/README.md`
+- `docs/production/README.md`
+- `docs/testing/README.md`
+- `docs/troubleshooting/README.md`
+- `docs/openclaw_gateway_ws.md`
+- `docs/openclaw_gateway_base_config.md`

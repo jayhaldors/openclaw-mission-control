@@ -1,0 +1,13 @@
+# Contributing
+
+## How to contribute (first pass)
+- Follow the repo’s existing PR and review conventions.
+- Prefer small PRs.
+- Update docs when behavior changes.
+
+## Adding/changing docs
+- Canonical docs live in `docs/`.
+- Follow the IA in `docs/README.md`.
+
+## Testing expectations
+- See [docs/testing/README.md](testing/README.md).
