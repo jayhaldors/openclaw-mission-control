@@ -65,3 +65,23 @@ async def test_auth_bootstrap_rejects_requests_without_user_context() -> None:
 
     assert status == 401
     assert payload == {"detail": "Unauthorized"}
+
+
+@pytest.mark.asyncio
+async def test_auth_bootstrap_rejects_non_user_actor_type() -> None:
+    # Runtime behavior: handler checks `auth.actor_type != "user"`.
+    # Use a duck-typed object to simulate a non-user actor.
+    from types import SimpleNamespace
+
+    app = _build_test_app(
+        auth_ctx=SimpleNamespace(actor_type="agent", user=None),  # type: ignore[arg-type]
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        status, payload = await _get(client, "/api/v1/auth/bootstrap")
+
+    assert status == 401
+    assert payload == {"detail": "Unauthorized"}
