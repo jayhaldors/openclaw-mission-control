@@ -74,6 +74,10 @@ import {
   streamTasksApiV1BoardsBoardIdTasksStreamGet,
   updateTaskApiV1BoardsBoardIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
+import {
+  type listTaskTagsApiV1TagsGetResponse,
+  useListTaskTagsApiV1TagsGet,
+} from "@/api/generated/tags/tags";
 import type {
   AgentRead,
   ApprovalRead,
@@ -84,6 +88,7 @@ import type {
   OrganizationMemberRead,
   TaskCardRead,
   TaskCommentRead,
+  TaskTagRead,
   TaskRead,
 } from "@/api/generated/model";
 import { createExponentialBackoff } from "@/lib/backoff";
@@ -420,6 +425,12 @@ const normalizeApproval = (approval: ApprovalRead): Approval => ({
   status: approval.status ?? "pending",
 });
 
+const normalizeTagColor = (value?: string | null) => {
+  const cleaned = (value ?? "").trim().replace(/^#/, "").toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(cleaned)) return "9e9e9e";
+  return cleaned;
+};
+
 const priorities = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
@@ -668,6 +679,22 @@ export default function BoardDetailPage() {
       refetchOnMount: "always",
     },
   });
+  const taskTagsQuery = useListTaskTagsApiV1TagsGet<
+    listTaskTagsApiV1TagsGetResponse,
+    ApiError
+  >(undefined, {
+    query: {
+      enabled: Boolean(isSignedIn),
+      refetchOnMount: "always",
+    },
+  });
+  const taskTags = useMemo(
+    () =>
+      taskTagsQuery.data?.status === 200
+        ? (taskTagsQuery.data.data.items ?? [])
+        : [],
+    [taskTagsQuery.data],
+  );
 
   const boardAccess = useMemo(
     () =>
@@ -976,6 +1003,7 @@ export default function BoardDetailPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
+  const [createTagIds, setCreateTagIds] = useState<string[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -984,6 +1012,7 @@ export default function BoardDetailPage() {
   const [editStatus, setEditStatus] = useState<TaskStatus>("inbox");
   const [editPriority, setEditPriority] = useState("medium");
   const [editAssigneeId, setEditAssigneeId] = useState("");
+  const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [editDependsOnTaskIds, setEditDependsOnTaskIds] = useState<string[]>(
     [],
   );
@@ -1458,6 +1487,7 @@ export default function BoardDetailPage() {
       setEditStatus("inbox");
       setEditPriority("medium");
       setEditAssigneeId("");
+      setEditTagIds([]);
       setEditDependsOnTaskIds([]);
       setSaveTaskError(null);
       return;
@@ -1467,6 +1497,7 @@ export default function BoardDetailPage() {
     setEditStatus(selectedTask.status);
     setEditPriority(selectedTask.priority);
     setEditAssigneeId(selectedTask.assigned_agent_id ?? "");
+    setEditTagIds(selectedTask.tag_ids ?? []);
     setEditDependsOnTaskIds(selectedTask.depends_on_task_ids ?? []);
     setSaveTaskError(null);
   }, [selectedTask]);
@@ -1773,6 +1804,7 @@ export default function BoardDetailPage() {
     setTitle("");
     setDescription("");
     setPriority("medium");
+    setCreateTagIds([]);
     setCreateError(null);
   };
 
@@ -1791,6 +1823,7 @@ export default function BoardDetailPage() {
         description: description.trim() || null,
         status: "inbox",
         priority,
+        tag_ids: createTagIds,
       });
       if (result.status !== 200) throw new Error("Unable to create task.");
 
@@ -1943,6 +1976,32 @@ export default function BoardDetailPage() {
     [agents],
   );
 
+  const taskTagById = useMemo(() => {
+    const map = new Map<string, TaskTagRead>();
+    taskTags.forEach((tag) => {
+      map.set(tag.id, tag);
+    });
+    return map;
+  }, [taskTags]);
+
+  const createTagOptions = useMemo<DropdownSelectOption[]>(() => {
+    const selected = new Set(createTagIds);
+    return taskTags.map((tag) => ({
+      value: tag.id,
+      label: `${tag.name} (#${normalizeTagColor(tag.color).toUpperCase()})`,
+      disabled: selected.has(tag.id),
+    }));
+  }, [createTagIds, taskTags]);
+
+  const editTagOptions = useMemo<DropdownSelectOption[]>(() => {
+    const selected = new Set(editTagIds);
+    return taskTags.map((tag) => ({
+      value: tag.id,
+      label: `${tag.name} (#${normalizeTagColor(tag.color).toUpperCase()})`,
+      disabled: selected.has(tag.id),
+    }));
+  }, [editTagIds, taskTags]);
+
   const dependencyOptions = useMemo<DropdownSelectOption[]>(() => {
     if (!selectedTask) return [];
     const alreadySelected = new Set(editDependsOnTaskIds);
@@ -1967,12 +2026,30 @@ export default function BoardDetailPage() {
     );
   }, []);
 
+  const addEditTag = useCallback((tagId: string) => {
+    setEditTagIds((prev) => (prev.includes(tagId) ? prev : [...prev, tagId]));
+  }, []);
+
+  const removeEditTag = useCallback((tagId: string) => {
+    setEditTagIds((prev) => prev.filter((value) => value !== tagId));
+  }, []);
+
+  const addCreateTag = useCallback((tagId: string) => {
+    setCreateTagIds((prev) => (prev.includes(tagId) ? prev : [...prev, tagId]));
+  }, []);
+
+  const removeCreateTag = useCallback((tagId: string) => {
+    setCreateTagIds((prev) => prev.filter((value) => value !== tagId));
+  }, []);
+
   const hasTaskChanges = useMemo(() => {
     if (!selectedTask) return false;
     const normalizedTitle = editTitle.trim();
     const normalizedDescription = editDescription.trim();
     const currentDescription = (selectedTask.description ?? "").trim();
     const currentAssignee = selectedTask.assigned_agent_id ?? "";
+    const currentTags = [...(selectedTask.tag_ids ?? [])].sort().join("|");
+    const nextTags = [...editTagIds].sort().join("|");
     const currentDeps = [...(selectedTask.depends_on_task_ids ?? [])]
       .sort()
       .join("|");
@@ -1983,10 +2060,12 @@ export default function BoardDetailPage() {
       editStatus !== selectedTask.status ||
       editPriority !== selectedTask.priority ||
       editAssigneeId !== currentAssignee ||
+      currentTags !== nextTags ||
       currentDeps !== nextDeps
     );
   }, [
     editAssigneeId,
+    editTagIds,
     editDependsOnTaskIds,
     editDescription,
     editPriority,
@@ -2205,6 +2284,9 @@ export default function BoardDetailPage() {
         .join("|");
       const nextDeps = [...editDependsOnTaskIds].sort().join("|");
       const depsChanged = currentDeps !== nextDeps;
+      const currentTags = [...(selectedTask.tag_ids ?? [])].sort().join("|");
+      const nextTags = [...editTagIds].sort().join("|");
+      const tagsChanged = currentTags !== nextTags;
 
       const updatePayload: Parameters<
         typeof updateTaskApiV1BoardsBoardIdTasksTaskIdPatch
@@ -2218,6 +2300,9 @@ export default function BoardDetailPage() {
 
       if (depsChanged && selectedTask.status !== "done") {
         updatePayload.depends_on_task_ids = editDependsOnTaskIds;
+      }
+      if (tagsChanged) {
+        updatePayload.tag_ids = editTagIds;
       }
 
       const result = await updateTaskApiV1BoardsBoardIdTasksTaskIdPatch(
@@ -2280,6 +2365,7 @@ export default function BoardDetailPage() {
     setEditStatus(selectedTask.status);
     setEditPriority(selectedTask.priority);
     setEditAssigneeId(selectedTask.assigned_agent_id ?? "");
+    setEditTagIds(selectedTask.tag_ids ?? []);
     setEditDependsOnTaskIds(selectedTask.depends_on_task_ids ?? []);
     setSaveTaskError(null);
   };
@@ -2970,6 +3056,28 @@ export default function BoardDetailPage() {
                                                 {task.assignee ?? "Unassigned"}
                                               </span>
                                             </p>
+                                            {task.tags?.length ? (
+                                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {task.tags
+                                                  .slice(0, 3)
+                                                  .map((tag) => (
+                                                    <span
+                                                      key={tag.id}
+                                                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700"
+                                                    >
+                                                      <span
+                                                        className="h-1.5 w-1.5 rounded-full"
+                                                        style={{
+                                                          backgroundColor: `#${normalizeTagColor(
+                                                            tag.color,
+                                                          )}`,
+                                                        }}
+                                                      />
+                                                      {tag.name}
+                                                    </span>
+                                                  ))}
+                                              </div>
+                                            ) : null}
                                           </li>
                                         ))}
                                         {item.tasks.length > 3 ? (
@@ -3107,6 +3215,31 @@ export default function BoardDetailPage() {
                                   >
                                     {task.priority}
                                   </span>
+                                  {task.tags?.length ? (
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {task.tags.slice(0, 2).map((tag) => (
+                                        <span
+                                          key={tag.id}
+                                          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700"
+                                        >
+                                          <span
+                                            className="h-1.5 w-1.5 rounded-full"
+                                            style={{
+                                              backgroundColor: `#${normalizeTagColor(
+                                                tag.color,
+                                              )}`,
+                                            }}
+                                          />
+                                          {tag.name}
+                                        </span>
+                                      ))}
+                                      {task.tags.length > 2 ? (
+                                        <span className="text-[10px] font-semibold text-slate-500">
+                                          +{task.tags.length - 2}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                   <span className="text-xs text-slate-500">
                                     {task.assignee ?? "Unassigned"}
                                   </span>
@@ -3194,6 +3327,31 @@ export default function BoardDetailPage() {
                 <p className="text-sm text-slate-500">
                   No description provided.
                 </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Tags
+              </p>
+              {selectedTask?.tags?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedTask.tags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{
+                          backgroundColor: `#${normalizeTagColor(tag.color)}`,
+                        }}
+                      />
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No tags assigned.</p>
               )}
             </div>
             <div className="space-y-2">
@@ -3678,6 +3836,65 @@ export default function BoardDetailPage() {
               ) : null}
             </div>
             <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Tags
+                </label>
+                <button
+                  type="button"
+                  onClick={() => router.push("/tags")}
+                  className="text-xs font-medium text-slate-500 underline underline-offset-2 transition hover:text-slate-700"
+                >
+                  Manage tags
+                </button>
+              </div>
+              <DropdownSelect
+                ariaLabel="Add tag"
+                placeholder="Add tag"
+                options={editTagOptions}
+                onValueChange={addEditTag}
+                disabled={!selectedTask || isSavingTask || !canWrite}
+                emptyMessage="No tags configured."
+              />
+              {editTagIds.length === 0 ? (
+                <p className="text-xs text-slate-500">No tags assigned.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {editTagIds.map((tagId) => {
+                    const tag = taskTagById.get(tagId);
+                    const label = tag?.name ?? tagId;
+                    const color = normalizeTagColor(tag?.color);
+                    return (
+                      <span
+                        key={tagId}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700"
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: `#${color}` }}
+                        />
+                        <span className="max-w-[16rem] truncate">{label}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeEditTag(tagId)}
+                          className={cn(
+                            "rounded-full p-0.5 text-slate-500 transition",
+                            canWrite
+                              ? "hover:bg-white hover:text-slate-700"
+                              : "opacity-50 cursor-not-allowed",
+                          )}
+                          aria-label="Remove tag"
+                          disabled={!canWrite}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Dependencies
               </label>
@@ -3878,6 +4095,57 @@ export default function BoardDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-sm font-medium text-strong">Tags</label>
+                <button
+                  type="button"
+                  onClick={() => router.push("/tags")}
+                  className="text-xs font-medium text-slate-500 underline underline-offset-2 transition hover:text-slate-700"
+                >
+                  Manage tags
+                </button>
+              </div>
+              <DropdownSelect
+                ariaLabel="Add tag"
+                placeholder="Add tag"
+                options={createTagOptions}
+                onValueChange={addCreateTag}
+                disabled={!canWrite || isCreating}
+                emptyMessage="No tags configured."
+              />
+              {createTagIds.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {createTagIds.map((tagId) => {
+                    const tag = taskTagById.get(tagId);
+                    const color = normalizeTagColor(tag?.color);
+                    return (
+                      <span
+                        key={tagId}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700"
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: `#${color}` }}
+                        />
+                        {tag?.name ?? tagId}
+                        <button
+                          type="button"
+                          onClick={() => removeCreateTag(tagId)}
+                          className="rounded-full p-0.5 text-slate-500 transition hover:bg-white hover:text-slate-700"
+                          aria-label="Remove tag"
+                          disabled={!canWrite || isCreating}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">No tags assigned.</p>
+              )}
             </div>
             {createError ? (
               <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3 text-xs text-muted">

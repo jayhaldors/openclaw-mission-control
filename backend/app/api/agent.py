@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlmodel import SQLModel, col, select
 
 from app.api import agents as agents_api
@@ -20,6 +21,7 @@ from app.db.session import get_session
 from app.models.agents import Agent
 from app.models.boards import Board
 from app.models.task_dependencies import TaskDependency
+from app.models.task_tags import TaskTag
 from app.models.tasks import Task
 from app.schemas.agents import (
     AgentCreate,
@@ -42,6 +44,7 @@ from app.schemas.gateway_coordination import (
     GatewayMainAskUserResponse,
 )
 from app.schemas.pagination import DefaultLimitOffsetPage
+from app.schemas.task_tags import TaskTagRef
 from app.schemas.tasks import TaskCommentCreate, TaskCommentRead, TaskCreate, TaskRead, TaskUpdate
 from app.services.activity_log import record_activity
 from app.services.openclaw.coordination_service import GatewayCoordinationService
@@ -52,6 +55,7 @@ from app.services.task_dependencies import (
     dependency_status_by_id,
     validate_dependency_update,
 )
+from app.services.task_tags import replace_task_tags, validate_task_tag_ids
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -210,6 +214,32 @@ async def list_tasks(
     )
 
 
+@router.get("/boards/{board_id}/tags", response_model=list[TaskTagRef])
+async def list_task_tags(
+    board: Board = BOARD_DEP,
+    session: AsyncSession = SESSION_DEP,
+    agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
+) -> list[TaskTagRef]:
+    """List task tags available to the board's organization."""
+    _guard_board_access(agent_ctx, board)
+    tags = (
+        await session.exec(
+            select(TaskTag)
+            .where(col(TaskTag.organization_id) == board.organization_id)
+            .order_by(func.lower(col(TaskTag.name)).asc(), col(TaskTag.created_at).asc()),
+        )
+    ).all()
+    return [
+        TaskTagRef(
+            id=tag.id,
+            name=tag.name,
+            slug=tag.slug,
+            color=tag.color,
+        )
+        for tag in tags
+    ]
+
+
 @router.post("/boards/{board_id}/tasks", response_model=TaskRead)
 async def create_task(
     payload: TaskCreate,
@@ -220,8 +250,9 @@ async def create_task(
     """Create a task on the board as the lead agent."""
     _guard_board_access(agent_ctx, board)
     _require_board_lead(agent_ctx)
-    data = payload.model_dump(exclude={"depends_on_task_ids"})
+    data = payload.model_dump(exclude={"depends_on_task_ids", "tag_ids"})
     depends_on_task_ids = list(payload.depends_on_task_ids)
+    tag_ids = list(payload.tag_ids)
 
     task = Task.model_validate(data)
     task.board_id = board.id
@@ -233,6 +264,11 @@ async def create_task(
         board_id=board.id,
         task_id=task.id,
         depends_on_task_ids=depends_on_task_ids,
+    )
+    normalized_tag_ids = await validate_task_tag_ids(
+        session,
+        organization_id=board.organization_id,
+        tag_ids=tag_ids,
     )
     dep_status = await dependency_status_by_id(
         session,
@@ -274,6 +310,11 @@ async def create_task(
                 depends_on_task_id=dep_id,
             ),
         )
+    await replace_task_tags(
+        session,
+        task_id=task.id,
+        tag_ids=normalized_tag_ids,
+    )
     await session.commit()
     await session.refresh(task)
     record_activity(
@@ -295,12 +336,10 @@ async def create_task(
                 task=task,
                 agent=assigned_agent,
             )
-    return TaskRead.model_validate(task, from_attributes=True).model_copy(
-        update={
-            "depends_on_task_ids": normalized_deps,
-            "blocked_by_task_ids": blocked_by,
-            "is_blocked": bool(blocked_by),
-        },
+    return await tasks_api._task_read_response(
+        session,
+        task=task,
+        board_id=board.id,
     )
 
 

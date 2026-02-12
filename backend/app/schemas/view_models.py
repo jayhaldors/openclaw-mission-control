@@ -12,6 +12,7 @@ from app.schemas.approvals import ApprovalRead
 from app.schemas.board_groups import BoardGroupRead
 from app.schemas.board_memory import BoardMemoryRead
 from app.schemas.boards import BoardRead
+from app.schemas.task_tags import TaskTagRef
 from app.schemas.tasks import TaskRead
 
 RUNTIME_ANNOTATION_TYPES = (
@@ -22,6 +23,7 @@ RUNTIME_ANNOTATION_TYPES = (
     BoardGroupRead,
     BoardMemoryRead,
     BoardRead,
+    TaskTagRef,
 )
 
 
@@ -57,6 +59,7 @@ class BoardGroupTaskSummary(SQLModel):
     assignee: str | None = None
     due_at: datetime | None = None
     in_progress_at: datetime | None = None
+    tags: list[TaskTagRef] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

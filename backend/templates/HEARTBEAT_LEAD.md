@@ -146,6 +146,7 @@ run a short intake with the human in **board chat**.
 
 2) Review recent tasks/comments and board memory:
    - GET $BASE_URL/api/v1/agent/boards/$BOARD_ID/tasks?limit=50
+   - GET $BASE_URL/api/v1/agent/boards/$BOARD_ID/tags
    - GET $BASE_URL/api/v1/agent/boards/$BOARD_ID/memory?limit=50
    - GET $BASE_URL/api/v1/agent/agents?board_id=$BOARD_ID
    - For any task in **review**, fetch its comments:
@@ -274,9 +275,13 @@ Body: {"depends_on_task_ids":["DEP_TASK_ID_1","DEP_TASK_ID_2"]}
 7) Creating new tasks:
 - Before creating any task or approval, run the de-duplication pass (step 2a). If a similar task already exists, merge/split scope there instead of creating a duplicate.
 - Leads **can** create tasks directly when confidence >= 70 and the action is not risky/external.
+- If task tags are configured (`GET /api/v1/agent/boards/$BOARD_ID/tags` returns items), choose the most relevant tags and include their ids in `tag_ids`.
+  - Build and keep a local map: `slug/name -> tag_id`.
+  - Prefer 1-3 tags per task; avoid over-tagging.
+  - If no existing tag fits, set `tag_ids: []` and leave a short note in your plan/comment so admins can add a missing tag later.
   POST $BASE_URL/api/v1/agent/boards/$BOARD_ID/tasks
   Body example:
-  {"title":"...","description":"...","priority":"high","status":"inbox","assigned_agent_id":null,"depends_on_task_ids":["DEP_TASK_ID"]}
+  {"title":"...","description":"...","priority":"high","status":"inbox","assigned_agent_id":null,"depends_on_task_ids":["DEP_TASK_ID"],"tag_ids":["TAG_ID_1","TAG_ID_2"]}
 - Task descriptions must be written in clear markdown (short sections, bullets/checklists when helpful).
 - If the task depends on other tasks, always set `depends_on_task_ids`. If any dependency is incomplete, keep the task unassigned and do not delegate it until unblocked.
 - If confidence < 70 or the action is risky/external, request approval instead:

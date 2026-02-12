@@ -34,6 +34,7 @@ from app.models.approvals import Approval
 from app.models.boards import Board
 from app.models.task_dependencies import TaskDependency
 from app.models.task_fingerprints import TaskFingerprint
+from app.models.task_tag_assignments import TaskTagAssignment
 from app.models.tasks import Task
 from app.schemas.activity_events import ActivityEventRead
 from app.schemas.common import OkResponse
@@ -54,6 +55,12 @@ from app.services.task_dependencies import (
     dependent_task_ids,
     replace_task_dependencies,
     validate_dependency_update,
+)
+from app.services.task_tags import (
+    TaskTagState,
+    load_task_tag_state,
+    replace_task_tags,
+    validate_task_tag_ids,
 )
 
 if TYPE_CHECKING:
@@ -576,6 +583,10 @@ async def _task_read_page(
         return []
 
     task_ids = [task.id for task in tasks]
+    tag_state_by_task_id = await load_task_tag_state(
+        session,
+        task_ids=task_ids,
+    )
     deps_map = await dependency_ids_by_task_id(
         session,
         board_id=board_id,
@@ -592,6 +603,7 @@ async def _task_read_page(
 
     output: list[TaskRead] = []
     for task in tasks:
+        tag_state = tag_state_by_task_id.get(task.id, TaskTagState())
         dep_list = deps_map.get(task.id, [])
         blocked_by = blocked_by_dependency_ids(
             dependency_ids=dep_list,
@@ -603,6 +615,8 @@ async def _task_read_page(
             TaskRead.model_validate(task, from_attributes=True).model_copy(
                 update={
                     "depends_on_task_ids": dep_list,
+                    "tag_ids": tag_state.tag_ids,
+                    "tags": tag_state.tags,
                     "blocked_by_task_ids": blocked_by,
                     "is_blocked": bool(blocked_by),
                 },
@@ -611,18 +625,22 @@ async def _task_read_page(
     return output
 
 
-async def _stream_dependency_state(
+async def _stream_task_state(
     session: AsyncSession,
     *,
     board_id: UUID,
     rows: list[tuple[ActivityEvent, Task | None]],
-) -> tuple[dict[UUID, list[UUID]], dict[UUID, str]]:
+) -> tuple[dict[UUID, list[UUID]], dict[UUID, str], dict[UUID, TaskTagState]]:
     task_ids = [
         task.id for event, task in rows if task is not None and event.event_type != "task.comment"
     ]
     if not task_ids:
-        return {}, {}
+        return {}, {}, {}
 
+    tag_state_by_task_id = await load_task_tag_state(
+        session,
+        task_ids=list({*task_ids}),
+    )
     deps_map = await dependency_ids_by_task_id(
         session,
         board_id=board_id,
@@ -632,14 +650,14 @@ async def _stream_dependency_state(
     for value in deps_map.values():
         dep_ids.extend(value)
     if not dep_ids:
-        return deps_map, {}
+        return deps_map, {}, tag_state_by_task_id
 
     dep_status = await dependency_status_by_id(
         session,
         board_id=board_id,
         dependency_ids=list({*dep_ids}),
     )
-    return deps_map, dep_status
+    return deps_map, dep_status, tag_state_by_task_id
 
 
 def _task_event_payload(
@@ -648,6 +666,7 @@ def _task_event_payload(
     *,
     deps_map: dict[UUID, list[UUID]],
     dep_status: dict[UUID, str],
+    tag_state_by_task_id: dict[UUID, TaskTagState],
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "type": event.event_type,
@@ -660,6 +679,7 @@ def _task_event_payload(
         payload["task"] = None
         return payload
 
+    tag_state = tag_state_by_task_id.get(task.id, TaskTagState())
     dep_list = deps_map.get(task.id, [])
     blocked_by = blocked_by_dependency_ids(
         dependency_ids=dep_list,
@@ -672,6 +692,8 @@ def _task_event_payload(
         .model_copy(
             update={
                 "depends_on_task_ids": dep_list,
+                "tag_ids": tag_state.tag_ids,
+                "tags": tag_state.tags,
                 "blocked_by_task_ids": blocked_by,
                 "is_blocked": bool(blocked_by),
             },
@@ -697,7 +719,7 @@ async def _task_event_generator(
 
         async with async_session_maker() as session:
             rows = await _fetch_task_events(session, board_id, last_seen)
-            deps_map, dep_status = await _stream_dependency_state(
+            deps_map, dep_status, tag_state_by_task_id = await _stream_task_state(
                 session,
                 board_id=board_id,
                 rows=rows,
@@ -718,6 +740,7 @@ async def _task_event_generator(
                 task,
                 deps_map=deps_map,
                 dep_status=dep_status,
+                tag_state_by_task_id=tag_state_by_task_id,
             )
             yield {"event": "task", "data": json.dumps(payload)}
         await asyncio.sleep(2)
@@ -778,8 +801,9 @@ async def create_task(
     auth: AuthContext = ADMIN_AUTH_DEP,
 ) -> TaskRead:
     """Create a task and initialize dependency rows."""
-    data = payload.model_dump(exclude={"depends_on_task_ids"})
+    data = payload.model_dump(exclude={"depends_on_task_ids", "tag_ids"})
     depends_on_task_ids = list(payload.depends_on_task_ids)
+    tag_ids = list(payload.tag_ids)
 
     task = Task.model_validate(data)
     task.board_id = board.id
@@ -791,6 +815,11 @@ async def create_task(
         board_id=board.id,
         task_id=task.id,
         depends_on_task_ids=depends_on_task_ids,
+    )
+    normalized_tag_ids = await validate_task_tag_ids(
+        session,
+        organization_id=board.organization_id,
+        tag_ids=tag_ids,
     )
     dep_status = await dependency_status_by_id(
         session,
@@ -814,6 +843,11 @@ async def create_task(
                 depends_on_task_id=dep_id,
             ),
         )
+    await replace_task_tags(
+        session,
+        task_id=task.id,
+        tag_ids=normalized_tag_ids,
+    )
     await session.commit()
     await session.refresh(task)
 
@@ -836,12 +870,10 @@ async def create_task(
                 task=task,
                 agent=assigned_agent,
             )
-    return TaskRead.model_validate(task, from_attributes=True).model_copy(
-        update={
-            "depends_on_task_ids": normalized_deps,
-            "blocked_by_task_ids": blocked_by,
-            "is_blocked": bool(blocked_by),
-        },
+    return await _task_read_response(
+        session,
+        task=task,
+        board_id=board.id,
     )
 
 
@@ -876,8 +908,10 @@ async def update_task(
     depends_on_task_ids = (
         payload.depends_on_task_ids if "depends_on_task_ids" in payload.model_fields_set else None
     )
+    tag_ids = payload.tag_ids if "tag_ids" in payload.model_fields_set else None
     updates.pop("comment", None)
     updates.pop("depends_on_task_ids", None)
+    updates.pop("tag_ids", None)
     update = _TaskUpdateInput(
         task=task,
         actor=actor,
@@ -887,6 +921,7 @@ async def update_task(
         updates=updates,
         comment=comment,
         depends_on_task_ids=depends_on_task_ids,
+        tag_ids=tag_ids,
     )
     if actor.actor_type == "agent" and actor.agent and actor.agent.is_board_lead:
         return await _apply_lead_task_update(session, update=update)
@@ -955,6 +990,12 @@ async def delete_task(
             col(TaskDependency.task_id) == task.id,
             col(TaskDependency.depends_on_task_id) == task.id,
         ),
+        commit=False,
+    )
+    await crud.delete_where(
+        session,
+        TaskTagAssignment,
+        col(TaskTagAssignment.task_id) == task.id,
         commit=False,
     )
     await session.delete(task)
@@ -1119,6 +1160,8 @@ class _TaskUpdateInput:
     updates: dict[str, object]
     comment: str | None
     depends_on_task_ids: list[UUID] | None
+    tag_ids: list[UUID] | None
+    normalized_tag_ids: list[UUID] | None = None
 
 
 def _required_status_value(value: object) -> str:
@@ -1131,6 +1174,21 @@ def _optional_assigned_agent_id(value: object) -> UUID | None:
     if value is None or isinstance(value, UUID):
         return value
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+
+async def _board_organization_id(
+    session: AsyncSession,
+    *,
+    board_id: UUID,
+) -> UUID:
+    organization_id = (
+        await session.exec(
+            select(Board.organization_id).where(col(Board.id) == board_id),
+        )
+    ).first()
+    if organization_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return organization_id
 
 
 async def _task_dep_ids(
@@ -1173,6 +1231,10 @@ async def _task_read_response(
     board_id: UUID,
 ) -> TaskRead:
     dep_ids = await _task_dep_ids(session, board_id=board_id, task_id=task.id)
+    tag_state = (await load_task_tag_state(session, task_ids=[task.id])).get(
+        task.id,
+        TaskTagState(),
+    )
     blocked_ids = await _task_blocked_ids(
         session,
         board_id=board_id,
@@ -1183,6 +1245,8 @@ async def _task_read_response(
     return TaskRead.model_validate(task, from_attributes=True).model_copy(
         update={
             "depends_on_task_ids": dep_ids,
+            "tag_ids": tag_state.tag_ids,
+            "tags": tag_state.tags,
             "blocked_by_task_ids": blocked_ids,
             "is_blocked": bool(blocked_ids),
         },
@@ -1209,11 +1273,13 @@ def _lead_requested_fields(update: _TaskUpdateInput) -> set[str]:
         requested_fields.add("comment")
     if update.depends_on_task_ids is not None:
         requested_fields.add("depends_on_task_ids")
+    if update.tag_ids is not None:
+        requested_fields.add("tag_ids")
     return requested_fields
 
 
 def _validate_lead_update_request(update: _TaskUpdateInput) -> None:
-    allowed_fields = {"assigned_agent_id", "status", "depends_on_task_ids"}
+    allowed_fields = {"assigned_agent_id", "status", "depends_on_task_ids", "tag_ids"}
     requested_fields = _lead_requested_fields(update)
     if update.comment is not None or not requested_fields.issubset(allowed_fields):
         raise HTTPException(
@@ -1258,6 +1324,24 @@ async def _lead_effective_dependencies(
         dep_ids=effective_deps,
     )
     return effective_deps, blocked_by
+
+
+async def _normalized_update_tag_ids(
+    session: AsyncSession,
+    *,
+    update: _TaskUpdateInput,
+) -> list[UUID] | None:
+    if update.tag_ids is None:
+        return None
+    organization_id = await _board_organization_id(
+        session,
+        board_id=update.board_id,
+    )
+    return await validate_task_tag_ids(
+        session,
+        organization_id=organization_id,
+        tag_ids=update.tag_ids,
+    )
 
 
 async def _lead_apply_assignment(
@@ -1351,6 +1435,10 @@ async def _apply_lead_task_update(
         session,
         update=update,
     )
+    normalized_tag_ids = await _normalized_update_tag_ids(
+        session,
+        update=update,
+    )
 
     if blocked_by and update.task.status != "done":
         update.task.status = "inbox"
@@ -1359,6 +1447,13 @@ async def _apply_lead_task_update(
     else:
         await _lead_apply_assignment(session, update=update)
         _lead_apply_status(update)
+
+    if normalized_tag_ids is not None:
+        await replace_task_tags(
+            session,
+            task_id=update.task.id,
+            tag_ids=normalized_tag_ids,
+        )
 
     update.task.updated_at = utcnow()
     session.add(update.task)
@@ -1402,8 +1497,12 @@ async def _apply_non_lead_agent_task_rules(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     allowed_fields = {"status", "comment"}
-    if update.depends_on_task_ids is not None or not set(update.updates).issubset(
-        allowed_fields,
+    if (
+        update.depends_on_task_ids is not None
+        or update.tag_ids is not None
+        or not set(update.updates).issubset(
+            allowed_fields,
+        )
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     if "status" in update.updates:
@@ -1436,6 +1535,10 @@ async def _apply_admin_task_rules(
     update: _TaskUpdateInput,
 ) -> None:
     admin_normalized_deps: list[UUID] | None = None
+    update.normalized_tag_ids = await _normalized_update_tag_ids(
+        session,
+        update=update,
+    )
     if update.depends_on_task_ids is not None:
         if update.task.status == "done":
             raise HTTPException(
@@ -1610,6 +1713,21 @@ async def _finalize_updated_task(
             update.task.in_progress_at,
         ):
             raise _comment_validation_error()
+
+    if update.tag_ids is not None:
+        normalized = (
+            update.normalized_tag_ids
+            if update.normalized_tag_ids is not None
+            else await _normalized_update_tag_ids(
+                session,
+                update=update,
+            )
+        )
+        await replace_task_tags(
+            session,
+            task_id=update.task.id,
+            tag_ids=normalized or [],
+        )
 
     session.add(update.task)
     await session.commit()

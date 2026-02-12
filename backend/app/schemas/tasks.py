@@ -10,12 +10,13 @@ from pydantic import field_validator, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.schemas.common import NonEmptyStr
+from app.schemas.task_tags import TaskTagRef
 
 TaskStatus = Literal["inbox", "in_progress", "review", "done"]
 STATUS_REQUIRED_ERROR = "status is required"
 # Keep these symbols as runtime globals so Pydantic can resolve
 # deferred annotations reliably.
-RUNTIME_ANNOTATION_TYPES = (datetime, UUID, NonEmptyStr)
+RUNTIME_ANNOTATION_TYPES = (datetime, UUID, NonEmptyStr, TaskTagRef)
 
 
 class TaskBase(SQLModel):
@@ -28,6 +29,7 @@ class TaskBase(SQLModel):
     due_at: datetime | None = None
     assigned_agent_id: UUID | None = None
     depends_on_task_ids: list[UUID] = Field(default_factory=list)
+    tag_ids: list[UUID] = Field(default_factory=list)
 
 
 class TaskCreate(TaskBase):
@@ -46,6 +48,7 @@ class TaskUpdate(SQLModel):
     due_at: datetime | None = None
     assigned_agent_id: UUID | None = None
     depends_on_task_ids: list[UUID] | None = None
+    tag_ids: list[UUID] | None = None
     comment: NonEmptyStr | None = None
 
     @field_validator("comment", mode="before")
@@ -77,6 +80,7 @@ class TaskRead(TaskBase):
     updated_at: datetime
     blocked_by_task_ids: list[UUID] = Field(default_factory=list)
     is_blocked: bool = False
+    tags: list[TaskTagRef] = Field(default_factory=list)
 
 
 class TaskCommentCreate(SQLModel):

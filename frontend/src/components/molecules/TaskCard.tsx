@@ -11,6 +11,7 @@ interface TaskCardProps {
   assignee?: string;
   due?: string;
   approvalsPendingCount?: number;
+  tags?: Array<{ id: string; name: string; color: string }>;
   isBlocked?: boolean;
   blockedByCount?: number;
   onClick?: () => void;
@@ -27,6 +28,7 @@ export function TaskCard({
   assignee,
   due,
   approvalsPendingCount = 0,
+  tags = [],
   isBlocked = false,
   blockedByCount = 0,
   onClick,
@@ -61,6 +63,7 @@ export function TaskCard({
   };
 
   const priorityLabel = priority ? priority.toUpperCase() : "MEDIUM";
+  const visibleTags = tags.slice(0, 3);
 
   return (
     <div
@@ -113,6 +116,27 @@ export function TaskCard({
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
               <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
               Waiting for lead review
+            </div>
+          ) : null}
+          {visibleTags.length ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {visibleTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700"
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: `#${tag.color}` }}
+                  />
+                  {tag.name}
+                </span>
+              ))}
+              {tags.length > visibleTags.length ? (
+                <span className="text-[10px] font-semibold text-slate-500">
+                  +{tags.length - visibleTags.length}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </div>

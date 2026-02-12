@@ -67,6 +67,7 @@ def test_task_event_payload_includes_activity_for_comment_event() -> None:
         task,
         deps_map={},
         dep_status={},
+        tag_state_by_task_id={},
     )
 
     assert payload["type"] == "task.comment"
@@ -98,6 +99,7 @@ def test_task_event_payload_includes_activity_for_non_comment_event() -> None:
         task,
         deps_map={},
         dep_status={},
+        tag_state_by_task_id={},
     )
 
     assert payload["type"] == "task.updated"

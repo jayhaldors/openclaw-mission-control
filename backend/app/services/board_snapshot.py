@@ -22,6 +22,7 @@ from app.services.task_dependencies import (
     dependency_ids_by_task_id,
     dependency_status_by_id,
 )
+from app.services.task_tags import TaskTagState, load_task_tag_state
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -48,11 +49,13 @@ def _task_to_card(
     counts_by_task_id: dict[UUID, tuple[int, int]],
     deps_by_task_id: dict[UUID, list[UUID]],
     dependency_status_by_id_map: dict[UUID, str],
+    tag_state_by_task_id: dict[UUID, TaskTagState],
 ) -> TaskCardRead:
     card = TaskCardRead.model_validate(task, from_attributes=True)
     approvals_count, approvals_pending_count = counts_by_task_id.get(task.id, (0, 0))
     assignee = agent_name_by_id.get(task.assigned_agent_id) if task.assigned_agent_id else None
     depends_on_task_ids = deps_by_task_id.get(task.id, [])
+    tag_state = tag_state_by_task_id.get(task.id, TaskTagState())
     blocked_by_task_ids = blocked_by_dependency_ids(
         dependency_ids=depends_on_task_ids,
         status_by_id=dependency_status_by_id_map,
@@ -65,6 +68,8 @@ def _task_to_card(
             "approvals_count": approvals_count,
             "approvals_pending_count": approvals_pending_count,
             "depends_on_task_ids": depends_on_task_ids,
+            "tag_ids": tag_state.tag_ids,
+            "tags": tag_state.tags,
             "blocked_by_task_ids": blocked_by_task_ids,
             "is_blocked": bool(blocked_by_task_ids),
         },
@@ -81,6 +86,10 @@ async def build_board_snapshot(session: AsyncSession, board: Board) -> BoardSnap
         .all(session),
     )
     task_ids = [task.id for task in tasks]
+    tag_state_by_task_id = await load_task_tag_state(
+        session,
+        task_ids=task_ids,
+    )
 
     deps_by_task_id = await dependency_ids_by_task_id(
         session,
@@ -148,6 +157,7 @@ async def build_board_snapshot(session: AsyncSession, board: Board) -> BoardSnap
             counts_by_task_id=counts_by_task_id,
             deps_by_task_id=deps_by_task_id,
             dependency_status_by_id_map=dependency_status_by_id_map,
+            tag_state_by_task_id=tag_state_by_task_id,
         )
         for task in tasks
     ]

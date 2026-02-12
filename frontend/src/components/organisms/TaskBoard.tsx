@@ -25,6 +25,7 @@ type Task = {
   assigned_agent_id?: string | null;
   assignee?: string | null;
   approvals_pending_count?: number;
+  tags?: Array<{ id: string; name: string; slug: string; color: string }>;
   depends_on_task_ids?: string[];
   blocked_by_task_ids?: string[];
   is_blocked?: boolean;
@@ -453,6 +454,7 @@ export const TaskBoard = memo(function TaskBoard({
                       assignee={task.assignee ?? undefined}
                       due={formatDueDate(task.due_at)}
                       approvalsPendingCount={task.approvals_pending_count}
+                      tags={task.tags}
                       isBlocked={task.is_blocked}
                       blockedByCount={task.blocked_by_task_ids?.length ?? 0}
                       onClick={() => onTaskSelect?.(task)}
