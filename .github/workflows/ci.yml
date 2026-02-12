@@ -87,6 +87,11 @@ jobs:
           make frontend-test
           make frontend-build
 
+
+      - name: Docs link check
+        run: |
+          python scripts/check_markdown_links.py
+
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
