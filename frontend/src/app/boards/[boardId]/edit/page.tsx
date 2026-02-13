@@ -53,6 +53,7 @@ import {
 import SearchableSelect from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { localDateInputToUtcIso, toLocalDateInput } from "@/lib/datetime";
+import { Markdown } from "@/components/atoms/Markdown";
 
 const slugify = (value: string) =>
   value
@@ -188,7 +189,12 @@ function WebhookCard({
           disabled={isBusy}
         />
       ) : (
-        <p className="text-sm text-slate-700">{webhook.description}</p>
+        <div className="text-sm text-slate-700">
+          <Markdown
+            content={webhook.description || ""}
+            variant="description"
+          />
+        </div>
       )}
       <div className="rounded-md bg-slate-50 px-3 py-2">
         <code className="break-all text-xs text-slate-700">
