@@ -38,6 +38,17 @@ def test_approval_create_requires_lead_reasoning() -> None:
         )
 
 
+def test_approval_create_accepts_top_level_reasoning_alias() -> None:
+    model = ApprovalCreate.model_validate(
+        {
+            "action_type": "task.update",
+            "confidence": 80,
+            "reasoning": "Lead says OK.",
+        },
+    )
+    assert model.lead_reasoning == "Lead says OK."
+
+
 def test_approval_create_accepts_nested_decision_reason() -> None:
     model = ApprovalCreate.model_validate(
         {

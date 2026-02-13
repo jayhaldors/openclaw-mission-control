@@ -394,10 +394,13 @@ async def create_approval(
     _actor: ActorContext = ACTOR_DEP,
 ) -> ApprovalRead:
     """Create an approval for a board."""
+    payload_dict = payload.payload
+    if payload_dict is None and isinstance(payload.lead_reasoning, str) and payload.lead_reasoning.strip():
+        payload_dict = {"reason": payload.lead_reasoning.strip()}
     task_ids = normalize_task_ids(
         task_id=payload.task_id,
         task_ids=payload.task_ids,
-        payload=payload.payload,
+        payload=payload_dict,
     )
     task_id = task_ids[0] if task_ids else None
     if payload.status == "pending":
@@ -411,7 +414,7 @@ async def create_approval(
         task_id=task_id,
         agent_id=payload.agent_id,
         action_type=payload.action_type,
-        payload=payload.payload,
+        payload=payload_dict,
         confidence=payload.confidence,
         rubric_scores=payload.rubric_scores,
         status=payload.status,

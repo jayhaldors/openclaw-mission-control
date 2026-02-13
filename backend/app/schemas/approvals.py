@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import model_validator
+from pydantic import AliasChoices, Field as PydanticField, model_validator
 from sqlmodel import Field, SQLModel
 
 ApprovalStatus = Literal["pending", "approved", "rejected"]
@@ -49,9 +49,18 @@ class ApprovalCreate(ApprovalBase):
 
     agent_id: UUID | None = None
 
+    # Back-compat + ergonomics: some clients send lead reasoning as a top-level
+    # field (`reasoning` / `lead_reasoning`) rather than nesting under payload.reason.
+    lead_reasoning: str | None = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("lead_reasoning", "reasoning", "leadReasoning"),
+    )
+
     @model_validator(mode="after")
     def validate_lead_reasoning(self) -> Self:
         """Ensure each approval request includes explicit lead reasoning."""
+        if isinstance(self.lead_reasoning, str) and self.lead_reasoning.strip():
+            return self
         payload = self.payload
         if isinstance(payload, dict):
             reason = payload.get("reason")
