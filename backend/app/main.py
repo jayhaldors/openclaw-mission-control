@@ -18,6 +18,7 @@ from app.api.board_group_memory import router as board_group_memory_router
 from app.api.board_groups import router as board_groups_router
 from app.api.board_memory import router as board_memory_router
 from app.api.board_onboarding import router as board_onboarding_router
+from app.api.board_webhooks import router as board_webhooks_router
 from app.api.boards import router as boards_router
 from app.api.gateway import router as gateway_router
 from app.api.gateways import router as gateways_router
@@ -37,6 +38,36 @@ if TYPE_CHECKING:
 
 configure_logging()
 logger = get_logger(__name__)
+OPENAPI_TAGS = [
+    {
+        "name": "agent",
+        "description": (
+            "Agent-scoped API surface. All endpoints require `X-Agent-Token` and are "
+            "constrained by agent board access policies."
+        ),
+    },
+    {
+        "name": "agent-lead",
+        "description": (
+            "Lead workflows: delegation, review orchestration, approvals, and "
+            "coordination actions."
+        ),
+    },
+    {
+        "name": "agent-worker",
+        "description": (
+            "Worker workflows: task execution, task comments, and board/group context "
+            "reads/writes used during heartbeat loops."
+        ),
+    },
+    {
+        "name": "agent-main",
+        "description": (
+            "Gateway-main control workflows that message board leads or broadcast "
+            "coordination requests."
+        ),
+    },
+]
 
 
 @asynccontextmanager
@@ -55,7 +86,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         logger.info("app.lifecycle.stopped")
 
 
-app = FastAPI(title="Mission Control API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Mission Control API",
+    version="0.1.0",
+    lifespan=lifespan,
+    openapi_tags=OPENAPI_TAGS,
+)
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 if origins:
@@ -105,6 +141,7 @@ api_v1.include_router(board_groups_router)
 api_v1.include_router(board_group_memory_router)
 api_v1.include_router(boards_router)
 api_v1.include_router(board_memory_router)
+api_v1.include_router(board_webhooks_router)
 api_v1.include_router(board_onboarding_router)
 api_v1.include_router(approvals_router)
 api_v1.include_router(tasks_router)

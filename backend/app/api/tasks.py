@@ -42,7 +42,10 @@ from app.schemas.errors import BlockedTaskError
 from app.schemas.pagination import DefaultLimitOffsetPage
 from app.schemas.tasks import TaskCommentCreate, TaskCommentRead, TaskCreate, TaskRead, TaskUpdate
 from app.services.activity_log import record_activity
-from app.services.approval_task_links import load_task_ids_by_approval
+from app.services.approval_task_links import (
+    load_task_ids_by_approval,
+    pending_approval_conflicts_by_task,
+)
 from app.services.mentions import extract_mentions, matches_agent_mention
 from app.services.openclaw.gateway_dispatch import GatewayDispatchService
 from app.services.openclaw.gateway_rpc import GatewayConfig as GatewayClientConfig
@@ -111,6 +114,145 @@ def _blocked_task_error(blocked_by_task_ids: Sequence[UUID]) -> HTTPException:
             "blocked_by_task_ids": [str(value) for value in blocked_by_task_ids],
         },
     )
+
+
+def _approval_required_for_done_error() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "message": ("Task can only be marked done when a linked approval has been approved."),
+            "blocked_by_task_ids": [],
+        },
+    )
+
+
+def _review_required_for_done_error() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "message": ("Task can only be marked done from review when the board rule is enabled."),
+            "blocked_by_task_ids": [],
+        },
+    )
+
+
+def _pending_approval_blocks_status_change_error() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "message": ("Task status cannot be changed while a linked approval is pending."),
+            "blocked_by_task_ids": [],
+        },
+    )
+
+
+async def _task_has_approved_linked_approval(
+    session: AsyncSession,
+    *,
+    board_id: UUID,
+    task_id: UUID,
+) -> bool:
+    linked_approval_ids = select(col(ApprovalTaskLink.approval_id)).where(
+        col(ApprovalTaskLink.task_id) == task_id,
+    )
+    statement = (
+        select(col(Approval.id))
+        .where(col(Approval.board_id) == board_id)
+        .where(col(Approval.status) == "approved")
+        .where(
+            or_(
+                col(Approval.task_id) == task_id,
+                col(Approval.id).in_(linked_approval_ids),
+            ),
+        )
+        .limit(1)
+    )
+    return (await session.exec(statement)).first() is not None
+
+
+async def _task_has_pending_linked_approval(
+    session: AsyncSession,
+    *,
+    board_id: UUID,
+    task_id: UUID,
+) -> bool:
+    conflicts = await pending_approval_conflicts_by_task(
+        session,
+        board_id=board_id,
+        task_ids=[task_id],
+    )
+    return task_id in conflicts
+
+
+async def _require_approved_linked_approval_for_done(
+    session: AsyncSession,
+    *,
+    board_id: UUID,
+    task_id: UUID,
+    previous_status: str,
+    target_status: str,
+) -> None:
+    if previous_status == "done" or target_status != "done":
+        return
+    requires_approval = (
+        await session.exec(
+            select(col(Board.require_approval_for_done)).where(col(Board.id) == board_id),
+        )
+    ).first()
+    if requires_approval is False:
+        return
+    if not await _task_has_approved_linked_approval(
+        session,
+        board_id=board_id,
+        task_id=task_id,
+    ):
+        raise _approval_required_for_done_error()
+
+
+async def _require_review_before_done_when_enabled(
+    session: AsyncSession,
+    *,
+    board_id: UUID,
+    previous_status: str,
+    target_status: str,
+) -> None:
+    if previous_status == "done" or target_status != "done":
+        return
+    requires_review = (
+        await session.exec(
+            select(col(Board.require_review_before_done)).where(col(Board.id) == board_id),
+        )
+    ).first()
+    if requires_review and previous_status != "review":
+        raise _review_required_for_done_error()
+
+
+async def _require_no_pending_approval_for_status_change_when_enabled(
+    session: AsyncSession,
+    *,
+    board_id: UUID,
+    task_id: UUID,
+    previous_status: str,
+    target_status: str,
+    status_requested: bool,
+) -> None:
+    if not status_requested or previous_status == target_status:
+        return
+    blocks_status_change = (
+        await session.exec(
+            select(col(Board.block_status_changes_with_pending_approval)).where(
+                col(Board.id) == board_id,
+            ),
+        )
+    ).first()
+    if not blocks_status_change:
+        return
+    if await _task_has_pending_linked_approval(
+        session,
+        board_id=board_id,
+        task_id=task_id,
+    ):
+        raise _pending_approval_blocks_status_change_error()
 
 
 def _truncate_snippet(value: str) -> str:
@@ -1296,6 +1438,8 @@ async def _lead_effective_dependencies(
     *,
     update: _TaskUpdateInput,
 ) -> tuple[list[UUID], list[UUID]]:
+    # Use newly normalized dependency updates when supplied; otherwise fall back
+    # to the task's current dependencies for blocked-by evaluation.
     normalized_deps: list[UUID] | None = None
     if update.depends_on_task_ids is not None:
         if update.task.status == "done":
@@ -1447,6 +1591,27 @@ async def _apply_lead_task_update(
     else:
         await _lead_apply_assignment(session, update=update)
         _lead_apply_status(update)
+    await _require_no_pending_approval_for_status_change_when_enabled(
+        session,
+        board_id=update.board_id,
+        task_id=update.task.id,
+        previous_status=update.previous_status,
+        target_status=update.task.status,
+        status_requested="status" in update.updates,
+    )
+    await _require_review_before_done_when_enabled(
+        session,
+        board_id=update.board_id,
+        previous_status=update.previous_status,
+        target_status=update.task.status,
+    )
+    await _require_approved_linked_approval_for_done(
+        session,
+        board_id=update.board_id,
+        task_id=update.task.id,
+        previous_status=update.previous_status,
+        target_status=update.task.status,
+    )
 
     if normalized_tag_ids is not None:
         await replace_tags(
@@ -1496,6 +1661,8 @@ async def _apply_non_lead_agent_task_rules(
         and update.actor.agent.board_id != update.task.board_id
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    # Agents are limited to status/comment updates, and non-inbox status moves
+    # must pass dependency checks before they can proceed.
     allowed_fields = {"status", "comment"}
     if (
         update.depends_on_task_ids is not None
@@ -1569,6 +1736,8 @@ async def _apply_admin_task_rules(
     target_status = _required_status_value(
         update.updates.get("status", update.task.status),
     )
+    # Reset blocked tasks to inbox unless the task is already done and remains
+    # done, which is the explicit done-task exception.
     if blocked_ids and not (update.task.status == "done" and target_status == "done"):
         update.task.status = "inbox"
         update.task.assigned_agent_id = None
@@ -1625,6 +1794,8 @@ async def _record_task_update_activity(
     actor_agent_id = (
         update.actor.agent.id if update.actor.actor_type == "agent" and update.actor.agent else None
     )
+    # Record the task transition first, then reconcile dependents so any
+    # cascaded dependency effects are logged after the source change.
     record_activity(
         session,
         event_type=event_type,
@@ -1701,9 +1872,32 @@ async def _finalize_updated_task(
 ) -> TaskRead:
     for key, value in update.updates.items():
         setattr(update.task, key, value)
+    await _require_no_pending_approval_for_status_change_when_enabled(
+        session,
+        board_id=update.board_id,
+        task_id=update.task.id,
+        previous_status=update.previous_status,
+        target_status=update.task.status,
+        status_requested="status" in update.updates,
+    )
+    await _require_review_before_done_when_enabled(
+        session,
+        board_id=update.board_id,
+        previous_status=update.previous_status,
+        target_status=update.task.status,
+    )
+    await _require_approved_linked_approval_for_done(
+        session,
+        board_id=update.board_id,
+        task_id=update.task.id,
+        previous_status=update.previous_status,
+        target_status=update.task.status,
+    )
     update.task.updated_at = utcnow()
 
     status_raw = update.updates.get("status")
+    # Entering review requires either a new comment or a valid recent one to
+    # ensure reviewers get context on readiness.
     if status_raw == "review":
         comment_text = (update.comment or "").strip()
         if not comment_text and not await has_valid_recent_comment(
