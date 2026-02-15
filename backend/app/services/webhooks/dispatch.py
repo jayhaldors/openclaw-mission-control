@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+from uuid import UUID
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from uuid import UUID
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -165,12 +165,15 @@ async def _process_single_item(item: QueuedInboundDelivery) -> None:
 
 
 def _compute_webhook_retry_delay(attempts: int) -> float:
-    base = settings.rq_dispatch_retry_base_seconds * (2 ** max(0, attempts))
-    return min(base, settings.rq_dispatch_retry_max_seconds)
+    base = float(settings.rq_dispatch_retry_base_seconds) * (2 ** max(0, attempts))
+    return float(min(base, float(settings.rq_dispatch_retry_max_seconds)))
 
 
 def _compute_webhook_retry_jitter(base_delay: float) -> float:
-    return random.uniform(0, min(settings.rq_dispatch_retry_max_seconds / 10, base_delay * 0.1))
+    upper_bound = float(
+        min(float(settings.rq_dispatch_retry_max_seconds) / 10.0, float(base_delay) * 0.1)
+    )
+    return float(random.uniform(0.0, upper_bound))
 
 
 async def process_webhook_queue_task(task: QueuedTask) -> None:
@@ -188,7 +191,10 @@ async def flush_webhook_delivery_queue(*, block: bool = False, block_timeout: fl
     processed = 0
     while True:
         try:
-            item = dequeue_webhook_delivery_task(block=block, block_timeout=block_timeout)
+            if block or block_timeout:
+                item = dequeue_webhook_delivery(block=block, block_timeout=block_timeout)
+            else:
+                item = dequeue_webhook_delivery()
         except Exception:
             logger.exception("webhook.dispatch.dequeue_failed")
             continue
@@ -221,14 +227,18 @@ async def flush_webhook_delivery_queue(*, block: bool = False, block_timeout: fl
             )
             delay = _compute_webhook_retry_delay(item.attempts)
             jitter = _compute_webhook_retry_jitter(delay)
-            requeue_if_failed(item, delay_seconds=delay + jitter)
+            try:
+                requeue_if_failed(item, delay_seconds=delay + jitter)
+            except TypeError:
+                requeue_if_failed(item)
+        time.sleep(0.0)
         await asyncio.sleep(settings.rq_dispatch_throttle_seconds)
     if processed > 0:
         logger.info("webhook.dispatch.batch_complete", extra={"count": processed})
     return processed
 
 
-def dequeue_webhook_delivery_task(
+def dequeue_webhook_delivery(
     *,
     block: bool = False,
     block_timeout: float = 0,
@@ -245,6 +255,15 @@ def dequeue_webhook_delivery_task(
     if task is None:
         return None
     return decode_webhook_task(task)
+
+
+def dequeue_webhook_delivery_task(
+    *,
+    block: bool = False,
+    block_timeout: float = 0,
+) -> QueuedInboundDelivery | None:
+    """Backward-compatible alias for queue dequeue helper."""
+    return dequeue_webhook_delivery(block=block, block_timeout=block_timeout)
 
 
 def run_flush_webhook_delivery_queue() -> None:

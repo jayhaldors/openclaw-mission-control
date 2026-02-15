@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import col, select
 
 from app.api.deps import get_board_for_user_read, get_board_for_user_write, get_board_or_404
-from app.core.logging import get_logger
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.core.time import utcnow
 from app.db import crud
 from app.db.pagination import paginate

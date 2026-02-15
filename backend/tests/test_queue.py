@@ -74,7 +74,9 @@ def test_generic_requeue_respects_retry_cap(monkeypatch: pytest.MonkeyPatch, att
         assert requeued.attempts == attempts + 1
 
 
-def test_dequeue_task_tolerates_legacy_payload_without_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dequeue_task_tolerates_legacy_payload_without_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = _FakeRedis()
 
     def _fake_redis(*, redis_url: str | None = None) -> _FakeRedis:

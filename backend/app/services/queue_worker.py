@@ -30,10 +30,10 @@ _TASK_HANDLERS: dict[str, _TaskHandler] = {
     WEBHOOK_TASK_TYPE: _TaskHandler(
         handler=process_webhook_queue_task,
         attempts_to_delay=lambda attempts: min(
-            settings.rq_dispatch_retry_base_seconds * (2**max(0, attempts)),
+            settings.rq_dispatch_retry_base_seconds * (2 ** max(0, attempts)),
             settings.rq_dispatch_retry_max_seconds,
         ),
-        requeue=requeue_webhook_queue_task,
+        requeue=lambda task, delay: requeue_webhook_queue_task(task, delay_seconds=delay),
     ),
 }
 
@@ -95,7 +95,7 @@ async def flush_queue(*, block: bool = False, block_timeout: float = 0) -> int:
             )
             base_delay = handler.attempts_to_delay(task.attempts)
             delay = base_delay + _compute_jitter(base_delay)
-            if not handler.requeue(task, delay_seconds=delay):
+            if not handler.requeue(task, delay):
                 logger.warning(
                     "queue.worker.drop_task",
                     extra={

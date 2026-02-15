@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from alembic.config import Config
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
@@ -43,9 +44,8 @@ async_session_maker = async_sessionmaker(
 logger = get_logger(__name__)
 
 
-def _alembic_config():
+def _alembic_config() -> Config:
     alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
-    from alembic.config import Config
 
     alembic_cfg = Config(str(alembic_ini))
     alembic_cfg.attributes["configure_logger"] = False

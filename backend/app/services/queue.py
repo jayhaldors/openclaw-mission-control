@@ -61,16 +61,20 @@ def _drain_ready_scheduled_tasks(
     scheduled_queue = _scheduled_queue_name(queue_name)
     now = _now_seconds()
 
-    ready_items = client.zrangebyscore(
-        scheduled_queue,
-        "-inf",
-        now,
-        start=0,
-        num=max_items,
+    ready_items = cast(
+        list[str | bytes],
+        client.zrangebyscore(
+            scheduled_queue,
+            "-inf",
+            now,
+            start=0,
+            num=max_items,
+        ),
     )
     if ready_items:
-        client.lpush(queue_name, *ready_items)
-        client.zrem(scheduled_queue, *ready_items)
+        ready_values = tuple(ready_items)
+        client.lpush(queue_name, *ready_values)
+        client.zrem(scheduled_queue, *ready_values)
         logger.debug(
             "rq.queue.drain_ready_scheduled",
             extra={
@@ -79,18 +83,21 @@ def _drain_ready_scheduled_tasks(
             },
         )
 
-    next_item = client.zrangebyscore(
-        scheduled_queue,
-        now,
-        "+inf",
-        start=0,
-        num=1,
-        withscores=True,
+    next_item = cast(
+        list[tuple[str | bytes, float]],
+        client.zrangebyscore(
+            scheduled_queue,
+            now,
+            "+inf",
+            start=0,
+            num=1,
+            withscores=True,
+        ),
     )
     if not next_item:
         return None
 
-    next_score = float(cast(tuple[str | bytes, float], next_item[0])[1])
+    next_score = float(next_item[0][1])
     return max(0.0, next_score - now)
 
 
@@ -169,22 +176,26 @@ def dequeue_task(
     """Pop one task envelope from the queue."""
     client = _redis_client(redis_url=redis_url)
     timeout = max(0.0, float(block_timeout))
+    raw: str | bytes | None
     if block:
         next_delay = _drain_ready_scheduled_tasks(client, queue_name)
         if timeout == 0:
             timeout = next_delay if next_delay is not None else 0
         else:
             timeout = min(timeout, next_delay) if next_delay is not None else timeout
-        raw = cast(tuple[bytes | str, bytes | str] | None, client.brpop(queue_name, timeout=timeout))
-        if raw is None:
+        raw_result = cast(
+            tuple[bytes | str, bytes | str] | None,
+            client.brpop([queue_name], timeout=timeout),
+        )
+        if raw_result is None:
             _drain_ready_scheduled_tasks(client, queue_name)
             return None
-        raw = raw[1]
+        raw = raw_result[1]
     else:
         raw = cast(str | bytes | None, client.rpop(queue_name))
-        if raw is None:
-            _drain_ready_scheduled_tasks(client, queue_name)
-            return None
+    if raw is None:
+        _drain_ready_scheduled_tasks(client, queue_name)
+        return None
     return _decode_task(raw, queue_name)
 
 
@@ -198,7 +209,9 @@ def _decode_task(raw: str | bytes, queue_name: str) -> QueuedTask:
             return QueuedTask(
                 task_type="legacy",
                 payload=payload,
-                created_at=_coerce_datetime(payload.get("created_at") or payload.get("received_at")),
+                created_at=_coerce_datetime(
+                    payload.get("created_at") or payload.get("received_at")
+                ),
                 attempts=int(payload.get("attempts", 0)),
             )
         return QueuedTask(

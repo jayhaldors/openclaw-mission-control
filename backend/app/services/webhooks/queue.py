@@ -9,7 +9,8 @@ from uuid import UUID
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.services.queue import QueuedTask, dequeue_task, enqueue_task, requeue_if_failed as generic_requeue_if_failed
+from app.services.queue import QueuedTask, dequeue_task, enqueue_task
+from app.services.queue import requeue_if_failed as generic_requeue_if_failed
 
 logger = get_logger(__name__)
 TASK_TYPE = "webhook_delivery"
@@ -51,7 +52,11 @@ def decode_webhook_task(task: QueuedTask) -> QueuedInboundDelivery:
             board_id=UUID(payload["board_id"]),
             webhook_id=UUID(payload["webhook_id"]),
             payload_id=UUID(payload["payload_id"]),
-            received_at=datetime.fromisoformat(received_at) if isinstance(received_at, str) else datetime.now(UTC),
+            received_at=(
+                datetime.fromisoformat(received_at)
+                if isinstance(received_at, str)
+                else datetime.now(UTC)
+            ),
             attempts=int(payload.get("attempts", task.attempts)),
         )
 

@@ -127,7 +127,9 @@ class _FakeQueuedItem:
         self.attempts = attempts
 
 
-def _patch_dequeue(monkeypatch: pytest.MonkeyPatch, items: list[QueuedInboundDelivery | None]) -> None:
+def _patch_dequeue(
+    monkeypatch: pytest.MonkeyPatch, items: list[QueuedInboundDelivery | None]
+) -> None:
     def _dequeue() -> QueuedInboundDelivery | None:
         if not items:
             return None
@@ -137,7 +139,9 @@ def _patch_dequeue(monkeypatch: pytest.MonkeyPatch, items: list[QueuedInboundDel
 
 
 @pytest.mark.asyncio
-async def test_dispatch_flush_processes_items_and_throttles(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_dispatch_flush_processes_items_and_throttles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     items: list[QueuedInboundDelivery | None] = [
         _FakeQueuedItem(),
         _FakeQueuedItem(),
