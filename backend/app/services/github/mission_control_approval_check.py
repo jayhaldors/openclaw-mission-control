@@ -389,7 +389,7 @@ async def reconcile_mission_control_approval_checks_for_all_boards() -> int:
                 select(col(Board.id)).order_by(col(Board.created_at).asc()),
             ),
         )
-        board_ids = cast(list[UUID], raw_board_ids)
+        board_ids = [value for value in raw_board_ids if isinstance(value, UUID)]
         processed = 0
         for board_id in board_ids:
             try:
