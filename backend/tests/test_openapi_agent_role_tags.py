@@ -101,6 +101,13 @@ def test_openapi_agent_role_endpoint_descriptions_exist() -> None:
     )
 
 
+def test_openapi_agent_heartbeat_requires_no_request_body() -> None:
+    """Authenticated heartbeats should infer identity from token without payload."""
+    schema = app.openapi()
+    op = schema["paths"]["/api/v1/agent/heartbeat"]["post"]
+    assert "requestBody" not in op
+
+
 def test_openapi_agent_tool_endpoints_include_llm_hints() -> None:
     """Tool-facing agent endpoints should expose structured usage hints and operation IDs."""
     schema = app.openapi()

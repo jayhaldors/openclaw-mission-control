@@ -27,7 +27,6 @@ from app.models.tasks import Task
 from app.schemas.agents import (
     AgentCreate,
     AgentHeartbeat,
-    AgentHeartbeatCreate,
     AgentNudge,
     AgentRead,
 )
@@ -1323,8 +1322,8 @@ async def nudge_agent(
     tags=AGENT_ALL_ROLE_TAGS,
     summary="Upsert agent heartbeat",
     description=(
-        "Record liveness for the authenticated agent's current status.\n\n"
-        "Use this when the agent heartbeat loop reports status changes."
+        "Record liveness for the authenticated agent.\n\n"
+        "Use this when the agent heartbeat loop checks in."
     ),
     openapi_extra={
         "x-llm-intent": "agent_heartbeat",
@@ -1339,7 +1338,7 @@ async def nudge_agent(
         "x-required-actor": "any_agent",
         "x-prerequisites": [
             "Authenticated agent token",
-            "Valid AgentHeartbeatCreate payload",
+            "No request payload required",
         ],
         "x-side-effects": [
             "Updates agent heartbeat and status metadata",
@@ -1372,7 +1371,6 @@ async def nudge_agent(
     },
 )
 async def agent_heartbeat(
-    payload: AgentHeartbeatCreate,
     session: AsyncSession = SESSION_DEP,
     agent_ctx: AgentAuthContext = AGENT_CTX_DEP,
 ) -> AgentRead:
@@ -1383,7 +1381,7 @@ async def agent_heartbeat(
     # Heartbeats must apply to the authenticated agent; agent names are not unique.
     return await agents_api.heartbeat_agent(
         agent_id=str(agent_ctx.agent.id),
-        payload=AgentHeartbeat(status=payload.status),
+        payload=AgentHeartbeat(),
         session=session,
         actor=_actor(agent_ctx),
     )
