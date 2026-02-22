@@ -10,15 +10,15 @@ For production environments, always use `wss://` (WebSocket Secure) connections 
 
 ### Self-Signed Certificates
 
-For local development or trusted local networks, you can enable support for self-signed TLS certificates:
+You can enable support for self-signed TLS certificates with a toggle:
 
 1. Navigate to the gateway configuration page (Settings → Gateways)
-2. When creating or editing a gateway, check the box: **"Allow self-signed TLS certificates"**
-3. This option is useful for:
-   - Local development: `wss://localhost:18789`
-   - Trusted local networks: `wss://192.168.1.100:18789`
+2. When creating or editing a gateway, enable: **"Allow self-signed TLS certificates"**
+3. This applies to any `wss://` gateway URL for that gateway configuration.
 
-**Security Warning**: Only enable this option for localhost or gateways on trusted local networks. Do not use self-signed certificates for production gateways accessible over the internet.
+When enabled, Mission Control skips TLS certificate verification for that gateway connection.
+
+**Security Warning**: Enabling this weakens transport security and should only be used when you explicitly trust the endpoint and network path. Prefer valid CA-signed certificates for production gateways.
 
 ## Configuration Options
 
@@ -27,5 +27,4 @@ When configuring a gateway, you can specify:
 - **Gateway URL**: The WebSocket endpoint (e.g., `wss://localhost:18789` or `ws://gateway:18789`)
 - **Gateway Token**: Optional authentication token
 - **Workspace Root**: The root directory for gateway files (e.g., `~/.openclaw`)
-- **Allow self-signed TLS certificates**: Enable/disable self-signed certificate support (default: disabled)
-
+- **Allow self-signed TLS certificates**: Toggle TLS certificate verification off for this gateway's `wss://` connections (default: disabled)
