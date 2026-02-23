@@ -8,8 +8,11 @@ import {
   Bot,
   Boxes,
   CheckCircle2,
+  Cpu,
+  DollarSign,
   Folder,
   Building2,
+  Hammer,
   LayoutGrid,
   Network,
   Settings,
@@ -248,6 +251,49 @@ export function DashboardSidebar() {
                   Agents
                 </Link>
               ) : null}
+            </div>
+          </div>
+          <div>
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Tracking
+            </p>
+            <div className="mt-1 space-y-1">
+              <Link
+                href="/home-improvement"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition",
+                  pathname.startsWith("/home-improvement")
+                    ? "bg-blue-100 text-blue-800 font-medium"
+                    : "hover:bg-slate-100",
+                )}
+              >
+                <Hammer className="h-4 w-4" />
+                Home Improvement
+              </Link>
+              <Link
+                href="/cost-tracking"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition",
+                  pathname.startsWith("/cost-tracking")
+                    ? "bg-blue-100 text-blue-800 font-medium"
+                    : "hover:bg-slate-100",
+                )}
+              >
+                <DollarSign className="h-4 w-4" />
+                Cost Tracking
+              </Link>
+              <Link
+                href="/llm-use"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition",
+                  pathname.startsWith("/llm-use")
+                    ? "bg-blue-100 text-blue-800 font-medium"
+                    : "hover:bg-slate-100",
+                )}
+              >
+                <Cpu className="h-4 w-4" />
+                LLM Use
+              </Link>
             </div>
           </div>
         </nav>
